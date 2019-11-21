@@ -13,11 +13,17 @@ def state_machine(object):
         # Run the state using the parameters and decide if the state machine is to continue running or not.
         # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
         if params == []:
-            exit_state_machine = eval(f"sm.{state_to_exec}()")
+            returned = eval(f"sm.{state_to_exec}()")
         else:
-            exit_state_machine = eval(f"sm.{state_to_exec}(params)")
-        if exit_state_machine:
-            break
+            returned = eval(f"sm.{state_to_exec}(params)")
+        if returned != None:
+            if returned == "SHUTDOWN":
+                # If a True was returned then the SHUTDOWN state was the last to run
+                break
+            elif type(returned).__name__ == "list":
+                # If a list of states was returned, enqueue them
+                for state_and_params in returned:
+                    states_queue.put(state_and_params, use_last_state_priority=True)
 
 def iot_read_write(obj):
     certs_dir = obj["certs_dir"]
