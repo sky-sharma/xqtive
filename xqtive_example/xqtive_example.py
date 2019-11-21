@@ -50,7 +50,7 @@ from xqtive_example_state_machine import XqtiveExampleStateMachine
 sm = XqtiveExampleStateMachine(config)
 
 # Create managed PriorityQueue for states
-states_queue = xqtive.XqtiveQueue(sm.hi_priorities, config["states"]["normal_priority"])
+states_queue = xqtive.XqtiveQueue(sm.priority_values, sm.hi_priorities)
 
 spawned_processes = []
 
