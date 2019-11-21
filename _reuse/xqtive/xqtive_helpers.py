@@ -31,17 +31,42 @@ class StatesQueue():
         self.hi_priorities = hi_priorities
         self.normal_priority = normal_priority
 
-    def put(self, state_and_params):
+    def put(self, state_and_params, **optional):
         # If state_to_exec is one of the ones in self.priority_per_state then retrieve
         # corresponding priority. Otherwise priority is normal_state_priority.
         state_to_exec = state_and_params[0]
-        priority = self.hi_priorities.get(state_to_exec, self.normal_priority)
+
+        # See if an optional param was passed requesting for this state to be enqueued with the
+        # same priority as the last state dequeued. If so this state was internally called.
+        use_last_state_priority = optional.get("use_last_state_priority")
+        if use_last_state_priority:
+            priority = self.last_state_priority
+        else:
+            # If no priority was requested, see if the state has a predefined hi_priority and use that.
+            # If no predefined priority exists then use normal_priority
+            priority = self.hi_priorities.get(state_to_exec, self.normal_priority)
+
         self.put_count += 1
         print(f"putting; priority: {priority}; put_count: {self.put_count}; state_and_params: {state_and_params}; state_priority: {self.hi_priorities.get(state_to_exec)}")
         self.queue.put((priority, self.put_count, state_and_params))
 
     def get(self):
-        return self.queue.get()[2]    # Skip priority and put_count to get just the item
+        gotten_item = self.queue.get()
+        self.last_state_priority = gotten_item[0]
+        gotten_item_data = gotten_item[2]    # Skip element 1 which is put_count
+
+        # If gotten item is of HIGHEST priority (i.e. 0)
+        # then no subsequent items are to be handled. So Flush queue.
+        if self.last_state_priority == 0:
+            while not self.queue.empty():
+                try:
+                    self.queue.get(False)
+                except Exception as e:
+                    if e.__str__ == "Empty":
+                        # If queue is empty exit this while loop
+                        continue
+                self.queue.task_done()
+        return gotten_item_data
 
 def read_config(config_filepath):
     with open(config_filepath) as cfgFile:
