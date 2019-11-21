@@ -15,19 +15,23 @@ main_file_info = os.path.splitext(os.path.basename(__main__.__file__))
 main_file_name = main_file_info[0]
 main_file_extension = main_file_info[1]
 
-if main_file_extension == ".py":    # If running source files
+# If running .py files
+if main_file_extension == ".py":
     base_dir = os.path.dirname(os.path.abspath(__main__.__file__))
     xqtive_dir = f"{base_dir}/../_reuse/xqtive"
     modules_dir = f"{base_dir}/modules"
 
-if main_file_extension == ".pyc":    # If running compiled file
+# If running .pyc file
+if main_file_extension == ".pyc":
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__main__.__file__)))
     xqtive_dir = f"{base_dir}/../_reuse/xqtive/__pycache__"
     modules_dir = f"{base_dir}/modules/__pycache__"
 
+# Get name and path of config file
 config_file_name = main_file_name + "_config.json"
 config_filepath = os.path.join(base_dir, "config", config_file_name)
 
+# Get certs dir
 certs_dir = f"{base_dir}/certs"
 
 # Add directories to sys.path
@@ -38,15 +42,15 @@ sys.path.append(modules_dir)
 import xqtive_helpers
 import xqtive_processes
 
+# Read config file
 config = xqtive_helpers.read_config(config_filepath)
-print(config)
 
-# Import State Machine Class and create a State Machine
+# Import State Machine Class and create a State Machine.
 from xqtive_example_state_machine import XqtiveExampleStateMachine
-sm = XqtiveExampleStateMachine()
+sm = XqtiveExampleStateMachine(config)
 
 # Create managed PriorityQueue for states
-states_queue = xqtive_helpers.StatesQueue(sm.state_priorities, config["normal_state_priority"])
+states_queue = xqtive_helpers.StatesQueue(sm.hi_priorities, config["states"]["normal_priority"])
 
 spawned_processes = []
 
@@ -60,8 +64,10 @@ spawned_processes.append(state_machine_process)
 #states_queue.put(["Wait", "1"])
 #states_queue.put(["Message"])
 iot_connect_cfg = {"certs_dir": certs_dir, "states_queue": states_queue, "config": config}
-xqtive_helpers.iot_connect(iot_connect_cfg)
+iot_comm = xqtive_helpers.iot_connect(iot_connect_cfg)
 
 # Wait till all processes have exited before killing main process
 for spawned_process in spawned_processes:
     spawned_process.join()
+
+xqtive_helpers.iot_close(iot_comm)
