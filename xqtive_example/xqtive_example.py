@@ -18,13 +18,13 @@ main_file_extension = main_file_info[1]
 # If running .py files
 if main_file_extension == ".py":
     base_dir = os.path.dirname(os.path.abspath(__main__.__file__))
-    xqtive_dir = f"{base_dir}/../_reuse/xqtive"
+    xqtive_dir = f"{base_dir}/../xqtive"
     modules_dir = f"{base_dir}/modules"
 
 # If running .pyc file
 if main_file_extension == ".pyc":
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__main__.__file__)))
-    xqtive_dir = f"{base_dir}/../_reuse/xqtive/__pycache__"
+    xqtive_dir = f"{base_dir}/../xqtive/__pycache__"
     modules_dir = f"{base_dir}/modules/__pycache__"
 
 # Get name and path of config file
