@@ -1,9 +1,9 @@
-from xqtive_states import States
+from xqtive import XqtiveStates
 
-class XqtiveExampleStateMachine(States):
+class XqtiveExampleStateMachine(XqtiveStates):
     def __init__(self, config):
         self.cust_hi_priorities = {"PWR_SPLY_OFF": 0}
-        States.__init__(self, config)
+        XqtiveStates.__init__(self, config)
 
     def MESSAGE(self):
         print(f"Message {self.__dict__}")
