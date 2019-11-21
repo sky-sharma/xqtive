@@ -1,7 +1,6 @@
 {
   "states":
   {
-    "normal_priority": 4,
     "wait_resolution": 1
   },
   "iot":
