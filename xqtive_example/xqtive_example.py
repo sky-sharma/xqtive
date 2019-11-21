@@ -55,18 +55,12 @@ state_machine_process = Process(target = xqtive_processes.state_machine, args = 
 state_machine_process.start()
 spawned_processes.append(state_machine_process)
 
-states_queue.put(["Wait", "3"])
-states_queue.put(["Wait", "2"])
-states_queue.put(["Wait", "1"])
-states_queue.put(["Message"])
+#states_queue.put(["Wait", "3"])
+#states_queue.put(["Wait", "2"])
+#states_queue.put(["Wait", "1"])
+#states_queue.put(["Message"])
 iot_connect_cfg = {"certs_dir": certs_dir, "states_queue": states_queue, "config": config}
 xqtive_helpers.iot_connect(iot_connect_cfg)
-
-while True:
-    try:
-        time.sleep(1)
-    except:
-        break
 
 # Wait till all processes have exited before killing main process
 for spawned_process in spawned_processes:
