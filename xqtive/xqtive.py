@@ -21,7 +21,8 @@ class XqtiveStates(object):
         """
 
         # Set hi_priority values for important states
-        self.hi_priorities = {"SHUTDOWN": 1, "WAIT": 2}
+        self.priority_values = {"HIGHEST": 0, "HIGH": 1, "INTERNAL": 2, "NORMAL": 3}
+        self.hi_priorities = {"SHUTDOWN": "HIGH"}
         try:
             # See if there are any custom states with hi priorities
             cust_hi_priorities = self.cust_hi_priorities
@@ -30,6 +31,9 @@ class XqtiveStates(object):
         except:
             cust_hi_priorities = {}
             pass
+
+        # Make sure all priority entries are upper case
+        cust_hi_priorities.update((key, val.upper()) for key, val in cust_hi_priorities.items())
 
         # Merge existing hi_priorities dict with custom ones
         self.hi_priorities.update(cust_hi_priorities)
@@ -82,48 +86,42 @@ class XqtiveQueue():
     to break any ties between multiple items with the same priority. This is because we DON'T
     want comparisons between the actual items in case the priorities are the same.
     """
-    def __init__(self, hi_priorities, normal_priority):
+    def __init__(self, priority_values, hi_priorities):
         """
         Create managed Priority queue shared between processes
         """
         XqtiveSyncMgr.register("PriorityQueue", PriorityQueue)
         states_queue_mgr = XqtiveSyncMgr()
         states_queue_mgr.start()
-        self.queue = states_queue_mgr.PriorityQueue()
 
+        self.queue = states_queue_mgr.PriorityQueue()
         self.put_count = 0
+        self.priority_values = priority_values
 
         # All predefined priorities are ABOVE normal.
         self.hi_priorities = hi_priorities
-        self.normal_priority = normal_priority
 
     def put(self, state_and_params, **optional):
+        print("got here!")
         # If state_to_exec is one of the ones in self.priority_per_state then retrieve
         # corresponding priority. Otherwise priority is normal_state_priority.
         state_to_exec = state_and_params[0]
 
-        # See if an optional param was passed requesting for this state to be enqueued with the
-        # same priority as the last state dequeued. If so this state was internally called.
-        use_last_state_priority = optional.get("use_last_state_priority")
-        if use_last_state_priority:
-            priority = self.last_state_priority
-        else:
-            # If no priority was requested, see if the state has a predefined hi_priority and use that.
-            # If no predefined priority exists then use normal_priority
-            priority = self.hi_priorities.get(state_to_exec, self.normal_priority)
+        # Check if an optional priority_to_use was sent. If not see if this state has a predefined hi_priority. Else use normal priority.
+        priority = optional.get("priority_to_use", self.hi_priorities.get(state_to_exec, "NORMAL"))
 
         self.put_count += 1
         print(f"putting; priority: {priority}; put_count: {self.put_count}; state_and_params: {state_and_params}; state_priority: {self.hi_priorities.get(state_to_exec)}")
-        self.queue.put((priority, self.put_count, state_and_params))
+        self.queue.put((self.priority_values[priority], self.put_count, state_and_params))
 
     def get(self):
         gotten_item = self.queue.get()
         self.last_state_priority = gotten_item[0]
         gotten_item_data = gotten_item[2]    # Skip element 1 which is put_count
 
-        # If gotten item is of HIGHEST priority (i.e. 0)
-        # then no subsequent items are to be handled. So Flush queue.
-        if self.last_state_priority == 0:
+        # If gotten item is of High (1) or Highest (0)
+        # then none of the other items already in the queue are to be handled. So Flush queue.
+        if self.last_state_priority in [0, 1]:
             while not self.queue.empty():
                 try:
                     self.queue.get(False)
@@ -132,6 +130,7 @@ class XqtiveQueue():
                         # If queue is empty exit this while loop
                         continue
                 self.queue.task_done()
+        print(f"gotten: {gotten_item_data}; priority: {self.last_state_priority}")
         return gotten_item_data
 
 def xqtive_state_machine(object):
@@ -155,6 +154,13 @@ def xqtive_state_machine(object):
                 # If a True was returned then the SHUTDOWN state was the last to run
                 break
             elif type(returned).__name__ == "list":
-                # If a list of states was returned, enqueue them
+                if any(isinstance(element, list) for element in returned):
+                    # If returned contains list of lists
+                    next_states_params = returned
+                else:
+                    # If returned does not contain list of lists, it probably contains only one list.
+                    # Turn that into list of lists to be consistent
+                    next_states_params = [returned]
+                # If a list of states_params was returned, enqueue them
                 for state_and_params in returned:
-                    states_queue.put(state_and_params, use_last_state_priority=True)
+                    states_queue.put(state_and_params, priority_to_use="INTERNAL")
