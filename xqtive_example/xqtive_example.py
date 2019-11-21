@@ -39,8 +39,8 @@ sys.path.append(xqtive_dir)
 sys.path.append(modules_dir)
 
 # Import xqtive modules
-import xqtive_helpers
-import xqtive_processes
+import xqtive, xqtive_helpers
+#import xqtive_processes
 
 # Read config file
 config = xqtive_helpers.read_config(config_filepath)
@@ -50,12 +50,12 @@ from xqtive_example_state_machine import XqtiveExampleStateMachine
 sm = XqtiveExampleStateMachine(config)
 
 # Create managed PriorityQueue for states
-states_queue = xqtive_helpers.StatesQueue(sm.hi_priorities, config["states"]["normal_priority"])
+states_queue = xqtive.XqtiveQueue(sm.hi_priorities, config["states"]["normal_priority"])
 
 spawned_processes = []
 
 state_machine_cfg = {"state_machine": sm, "states_queue": states_queue}
-state_machine_process = Process(target = xqtive_processes.state_machine, args = [state_machine_cfg])
+state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
 state_machine_process.start()
 spawned_processes.append(state_machine_process)
 
