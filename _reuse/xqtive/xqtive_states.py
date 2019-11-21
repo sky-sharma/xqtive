@@ -7,18 +7,27 @@ class States(object):
     Child classes can be created which extend or override these states.
     """
 
-    def __init__(self):
+    def __init__(self, config):
         """
-        Defines private data that all states
+        Defines private data that all states share
         """
-        self.state_priorities = {"Shutdown": 1}
+        self.hi_priorities = {"Shutdown": 1, "Wait": 2}
+
+        # wait_resolution is the minimum amount of sleep time
+        # while executing a Wait. Needed to avoid hogging the CPU
+        self.wait_resolution = config.get("wait_resolution", 0.1)
+
+    def Sleep(self, params):
+        """
+        Method using time.sleep
+        """
+        print(f"Sleeping {params}")
+        time.sleep(float(params[0]))
 
     def Wait(self, params):
         """
-        Simple wait using time.sleep
+        Non-blocking Wait
         """
-        print(f"Waiting {params}")
-        time.sleep(float(params[0]))
 
     def Shutdown(self):
         return True    # Returning 'True' causes state machine to NOT continue
