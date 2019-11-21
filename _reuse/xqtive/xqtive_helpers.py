@@ -16,9 +16,9 @@ class StatesQueue():
     to break any ties between multiple items with the same priority. This is because we DON'T
     want comparisons between the actual items in case the priorities are the same.
     """
-    def __init__(self, states_priorities, normal_state_priority):
+    def __init__(self, hi_priorities, normal_priority):
         """
-
+        Create managed Priority queue shared between processes
         """
         XqtiveSyncMgr.register("PriorityQueue", PriorityQueue)
         states_queue_mgr = XqtiveSyncMgr()
@@ -28,16 +28,16 @@ class StatesQueue():
         self.put_count = 0
 
         # All predefined priorities are ABOVE normal.
-        self.priority_per_state = states_priorities
-        self.normal_state_priority = normal_state_priority
+        self.hi_priorities = hi_priorities
+        self.normal_priority = normal_priority
 
     def put(self, state_and_params):
         # If state_to_exec is one of the ones in self.priority_per_state then retrieve
         # corresponding priority. Otherwise priority is normal_state_priority.
         state_to_exec = state_and_params[0]
-        priority = self.priority_per_state.get(state_to_exec, self.normal_state_priority)
+        priority = self.hi_priorities.get(state_to_exec, self.normal_priority)
         self.put_count += 1
-        print(f"putting; priority: {priority}; put_count: {self.put_count}; state_and_params: {state_and_params}; state_prio: {self.priority_per_state.get(state_to_exec)}")
+        print(f"putting; priority: {priority}; put_count: {self.put_count}; state_and_params: {state_and_params}; state_priority: {self.hi_priorities.get(state_to_exec)}")
         self.queue.put((priority, self.put_count, state_and_params))
 
     def get(self):
@@ -77,3 +77,6 @@ def iot_connect(obj):
     iot_comm.connect()
     iot_comm.subscribe(subscribe_topic, 1, None)
     return iot_comm
+
+def iot_close(iot_comm):
+    iot_comm.disconnect()
