@@ -10,10 +10,14 @@ def read_config(config_filepath):
 def iot_onmsg(msg):
     msg_payload = msg.payload
     dict_payload = json.loads(msg_payload)
-    message = dict_payload["message"]
-    print(message)
-    message_array = message.split(";")
-    states_queue.put(message_array)
+    msg = dict_payload["message"]
+    print(msg)
+    msg_array = msg.split(";")
+
+    # Capitalize state: all states called from the outside have to be public.
+    # Public states are indicated by being named all upper case
+    msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
+    states_queue.put(msg_arr_with_cap_state)
 
 def iot_connect(obj):
     certs_dir = obj["certs_dir"]
