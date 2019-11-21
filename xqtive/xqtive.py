@@ -154,7 +154,7 @@ def xqtive_state_machine(object):
                 # If a True was returned then the SHUTDOWN state was the last to run
                 break
             elif type(returned).__name__ == "list":
-                if any(isinstance(element, list) for element in returned):
+                if type(returned[0]).__name__ == "list":
                     # If returned contains list of lists
                     next_states_params = returned
                 else:
@@ -162,5 +162,5 @@ def xqtive_state_machine(object):
                     # Turn that into list of lists to be consistent
                     next_states_params = [returned]
                 # If a list of states_params was returned, enqueue them
-                for state_and_params in returned:
+                for state_and_params in next_states_params:
                     states_queue.put(state_and_params, priority_to_use="INTERNAL")
