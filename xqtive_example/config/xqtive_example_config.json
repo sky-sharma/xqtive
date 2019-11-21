@@ -1,5 +1,9 @@
 {
-  "normal_state_priority": 2,
+  "states":
+  {
+    "normal_priority": 3,
+    "wait_resolution": 1
+  },
   "iot":
 	{
 		"broker_address": "a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com",
