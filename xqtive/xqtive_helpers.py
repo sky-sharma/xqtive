@@ -1,4 +1,8 @@
 import json
+import time
+import xqtive
+from queue import Queue
+from multiprocessing import Process
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
@@ -62,3 +66,36 @@ def iot_rw(obj):
 
 def iot_close(iot_comm):
     iot_comm.disconnect()
+
+def launch_state_machine(state_machine_class, config, certs_dir):
+    state_machine = state_machine_class(config)
+    launched_processes = []
+    # Create managed PriorityQueue for states
+    states_queue = xqtive.XqtiveQueue(state_machine.priority_values, state_machine.hi_priorities)
+
+    xqtive.XqtiveSyncMgr.register("Queue", Queue)
+    iot_rw_queue_mgr = xqtive.XqtiveSyncMgr()
+    iot_rw_queue_mgr.start()
+    iot_rw_queue = iot_rw_queue_mgr.Queue()
+
+    iot_rw_cfg = {
+        "certs_dir": certs_dir,
+        "states_queue": states_queue,
+        "iot_rw_queue": iot_rw_queue,
+        "config": config}
+    iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
+    iot_rw_process.start()
+    launched_processes.append(iot_rw_process)
+
+    state_machine_cfg = {
+        "state_machine": state_machine,
+        "states_queue": states_queue,
+        "iot_rw_queue": iot_rw_queue}
+    state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
+    state_machine_process.start()
+    launched_processes.append(state_machine_process)
+    processes_and_queues = {
+        "processes": launched_processes,
+        "states_queue": states_queue,
+        "iot_rw_queue": iot_rw_queue}
+    return processes_and_queues
