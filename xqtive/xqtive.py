@@ -1,5 +1,7 @@
 # xqtive.py
 import time
+import logging
+import xqtive_helpers
 from queue import PriorityQueue
 from multiprocessing.managers import SyncManager
 
@@ -133,37 +135,42 @@ class XqtiveQueue():
 def xqtive_state_machine(object):
     sm = object["state_machine"]
     states_queue = object["states_queue"]
-    #publish_topic = object["publish_topic"]
     iot_rw_queue = object["iot_rw_queue"]
+    config = object["config"]
+    process_name = "xqtive_state_machine"
+    xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
     while True:
-        # Get dict containing both the state to execute and parameters needed by that state.
-        # Then separate the state to execute from the parameters.
-        state_and_params = states_queue.get()    # Get highest priority item without priority number
-        state_to_exec = state_and_params[0]
-        params = state_and_params[1:]    # params may be missing depending on the type of state
-        # Run the state using the parameters and decide if the state machine is to continue running or not.
-        # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
-        #print(f"1; {publish_topic}; {str(state_and_params)}")
-        iot_rw_queue.put(state_and_params)
-        #iot_comm.publish(publish_topic, "blahdi", QoS=0)
-        #print("2")
-        if params == []:
-            returned = eval(f"sm.{state_to_exec}()")
-        else:
-            returned = eval(f"sm.{state_to_exec}(params)")
-        if returned != None:
-            if returned == "SHUTDOWN":
-                # If SHUTDOWN received then SHUTDOWN state was the last to run
-                iot_rw_queue.put("SHUTDOWN")
-                break
-            elif type(returned).__name__ == "list":
-                if type(returned[0]).__name__ == "list":
-                    # If returned contains list of lists
-                    next_states_params = returned
-                else:
-                    # If returned does not contain list of lists, it probably contains only one list.
-                    # Turn that into list of lists to be consistent
-                    next_states_params = [returned]
-                # If a list of states_params was returned, enqueue them
-                for state_and_params in next_states_params:
-                    states_queue.put(state_and_params, priority_to_use="INTERNAL")
+        try:
+            # Get dict containing both the state to execute and parameters needed by that state.
+            # Then separate the state to execute from the parameters.
+            state_and_params = states_queue.get()    # Get highest priority item without priority number
+            state_to_exec = state_and_params[0]
+            params = state_and_params[1:]    # params may be missing depending on the type of state
+            # Run the state using the parameters and decide if the state machine is to continue running or not.
+            # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
+            if state_to_exec not in ["WaitUntilDeadline"]:
+                # Send info. about states being run to IoT except for some states that are called repeatedly
+                iot_rw_queue.put(state_and_params)
+            if params == []:
+                returned = eval(f"sm.{state_to_exec}()")
+            else:
+                returned = eval(f"sm.{state_to_exec}(params)")
+            if returned != None:
+                if returned == "SHUTDOWN":
+                    # If SHUTDOWN received then SHUTDOWN state was the last to run
+                    iot_rw_queue.put("SHUTDOWN")
+                    break
+                elif type(returned).__name__ == "list":
+                    if type(returned[0]).__name__ == "list":
+                        # If returned contains list of lists
+                        next_states_params = returned
+                    else:
+                        # If returned does not contain list of lists, it probably contains only one list.
+                        # Turn that into list of lists to be consistent
+                        next_states_params = [returned]
+                    # If a list of states_params was returned, enqueue them
+                    for state_and_params in next_states_params:
+                        states_queue.put(state_and_params, priority_to_use="INTERNAL")
+        except Exception as e:
+            xqtive_state_machine_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
+            pass
