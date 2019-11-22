@@ -52,7 +52,6 @@ class XqtiveStates(object):
         """
         Method using time.sleep
         """
-        print(f"Sleeping {params}")
         time.sleep(float(params[0]))
 
     def WAIT(self, params):
@@ -102,7 +101,6 @@ class XqtiveQueue():
         self.hi_priorities = hi_priorities
 
     def put(self, state_and_params, **optional):
-        print("got here!")
         # If state_to_exec is one of the ones in self.priority_per_state then retrieve
         # corresponding priority. Otherwise priority is normal_state_priority.
         state_to_exec = state_and_params[0]
@@ -111,7 +109,6 @@ class XqtiveQueue():
         priority = optional.get("priority_to_use", self.hi_priorities.get(state_to_exec, "NORMAL"))
 
         self.put_count += 1
-        print(f"putting; priority: {priority}; put_count: {self.put_count}; state_and_params: {state_and_params}; state_priority: {self.hi_priorities.get(state_to_exec)}")
         self.queue.put((self.priority_values[priority], self.put_count, state_and_params))
 
     def get(self):
@@ -130,28 +127,34 @@ class XqtiveQueue():
                         # If queue is empty exit this while loop
                         continue
                 self.queue.task_done()
-        print(f"gotten: {gotten_item_data}; priority: {self.last_state_priority}")
         return gotten_item_data
+
 
 def xqtive_state_machine(object):
     sm = object["state_machine"]
     states_queue = object["states_queue"]
+    #publish_topic = object["publish_topic"]
+    iot_rw_queue = object["iot_rw_queue"]
     while True:
         # Get dict containing both the state to execute and parameters needed by that state.
         # Then separate the state to execute from the parameters.
         state_and_params = states_queue.get()    # Get highest priority item without priority number
-        print(f" got: {state_and_params}")
         state_to_exec = state_and_params[0]
         params = state_and_params[1:]    # params may be missing depending on the type of state
         # Run the state using the parameters and decide if the state machine is to continue running or not.
         # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
+        #print(f"1; {publish_topic}; {str(state_and_params)}")
+        iot_rw_queue.put(state_and_params)
+        #iot_comm.publish(publish_topic, "blahdi", QoS=0)
+        #print("2")
         if params == []:
             returned = eval(f"sm.{state_to_exec}()")
         else:
             returned = eval(f"sm.{state_to_exec}(params)")
         if returned != None:
             if returned == "SHUTDOWN":
-                # If a True was returned then the SHUTDOWN state was the last to run
+                # If SHUTDOWN received then SHUTDOWN state was the last to run
+                iot_rw_queue.put("SHUTDOWN")
                 break
             elif type(returned).__name__ == "list":
                 if type(returned[0]).__name__ == "list":
