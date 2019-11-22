@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import __main__
+from queue import Queue
 from multiprocessing import Process
 
 # Get current file name
@@ -40,10 +41,11 @@ sys.path.append(modules_dir)
 
 # Import xqtive modules
 import xqtive, xqtive_helpers
-#import xqtive_processes
 
 # Read config file
 config = xqtive_helpers.read_config(config_filepath)
+
+spawned_processes = []
 
 # Import State Machine Class and create a State Machine.
 from xqtive_example_state_machine import XqtiveExampleStateMachine
@@ -52,22 +54,28 @@ sm = XqtiveExampleStateMachine(config)
 # Create managed PriorityQueue for states
 states_queue = xqtive.XqtiveQueue(sm.priority_values, sm.hi_priorities)
 
-spawned_processes = []
+xqtive.XqtiveSyncMgr.register("Queue", Queue)
+iot_rw_queue_mgr = xqtive.XqtiveSyncMgr()
+iot_rw_queue_mgr.start()
+iot_rw_queue = iot_rw_queue_mgr.Queue()
 
-state_machine_cfg = {"state_machine": sm, "states_queue": states_queue}
+iot_rw_cfg = {
+    "certs_dir": certs_dir,
+    "states_queue": states_queue,
+    "iot_rw_queue": iot_rw_queue,
+    "config": config}
+iot_rw_process = Process(target = xqtive_helpers.iot_rw, args = [iot_rw_cfg])
+iot_rw_process.start()
+spawned_processes.append(iot_rw_process)
+
+state_machine_cfg = {
+    "state_machine": sm,
+    "states_queue": states_queue,
+    "iot_rw_queue": iot_rw_queue}
 state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
 state_machine_process.start()
 spawned_processes.append(state_machine_process)
 
-#states_queue.put(["Wait", "3"])
-#states_queue.put(["Wait", "2"])
-#states_queue.put(["Wait", "1"])
-#states_queue.put(["Message"])
-iot_connect_cfg = {"certs_dir": certs_dir, "states_queue": states_queue, "config": config}
-iot_comm = xqtive_helpers.iot_connect(iot_connect_cfg)
-
 # Wait till all processes have exited before killing main process
 for spawned_process in spawned_processes:
     spawned_process.join()
-
-xqtive_helpers.iot_close(iot_comm)
