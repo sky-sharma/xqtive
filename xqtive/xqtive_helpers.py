@@ -1,5 +1,6 @@
 import json
 import time
+import logging
 import xqtive
 from queue import Queue
 from multiprocessing import Process
@@ -67,6 +68,11 @@ def iot_rw(obj):
 def iot_close(iot_comm):
     iot_comm.disconnect()
 
+def create_logger(logger_name, config):
+    logging.basicConfig(filename=f"/var/log/{logger_name}.log", format="%(asctime)s %(message)s", level=config["log_level"])
+    logger = logging.getLogger(logger_name)
+    return logger
+
 def launch_state_machine(state_machine_class, config, certs_dir):
     state_machine = state_machine_class(config)
     launched_processes = []
@@ -89,6 +95,7 @@ def launch_state_machine(state_machine_class, config, certs_dir):
 
     state_machine_cfg = {
         "state_machine": state_machine,
+        "config": config,
         "states_queue": states_queue,
         "iot_rw_queue": iot_rw_queue}
     state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
