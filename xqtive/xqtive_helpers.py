@@ -19,27 +19,46 @@ def iot_onmsg(msg):
     msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
     states_queue.put(msg_arr_with_cap_state)
 
-def iot_connect(obj):
+def iot_rw(obj):
     certs_dir = obj["certs_dir"]
     global states_queue
     states_queue = obj["states_queue"]
+    iot_rw_queue = obj["iot_rw_queue"]
     config = obj["config"]
     # Configure connection to IoT broker
     iot_broker = config["iot"]["broker_address"]
     iot_port = config["iot"]["broker_port"]
     subscribe_topic = config["iot"]["subscribe_topic"]
+    publish_topic = config["iot"]["publish_topic"]
     iot_ca_cert_path = f"{certs_dir}/{config['iot']['ca_cert']}"
     iot_client_cert_path = f"{certs_dir}/{config['iot']['client_cert']}"
     iot_client_key_path = f"{certs_dir}/{config['iot']['client_key']}"
 
-    # A connection to iot is established at the beginning and if publish fails
-    iot_comm = AWSIoTMQTTClient("xqtive")
-    iot_comm.onMessage = iot_onmsg
-    iot_comm.configureEndpoint(iot_broker, iot_port)
-    iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
-    iot_comm.connect()
-    iot_comm.subscribe(subscribe_topic, 1, None)
-    return iot_comm
+    iot_connected = False
+    while True:
+        if not iot_connected:
+            try:
+                # A connection to iot is established at the beginning and if publish fails
+                iot_comm = AWSIoTMQTTClient("xqtive")
+                iot_comm.onMessage = iot_onmsg
+                iot_comm.configureEndpoint(iot_broker, iot_port)
+                iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
+                iot_comm.connect()
+                iot_comm.subscribe(subscribe_topic, 1, None)
+                iot_connected = True
+            except Exception as e:
+                # If there was an error during connection close and wait before trying again
+                iot_comm.close()
+                time.sleep(config["iot"]["wait_between_reconn_attempts"])
+        else:
+            dequeued = iot_rw_queue.get()
+            if dequeued == "SHUTDOWN":
+                break
+            else:
+                msg_dict = {"message": dequeued}
+                msg_str = json.dumps(msg_dict)
+                iot_comm.publish(publish_topic, msg_str, QoS=0)
+
 
 def iot_close(iot_comm):
     iot_comm.disconnect()
