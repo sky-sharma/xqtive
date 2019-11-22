@@ -1,24 +1,14 @@
-import time
 import os
 import sys
-import logging
-import __main__
 
-# Get main file info, and from it, site config file info
-main_file_info = os.path.splitext(os.path.basename(__main__.__file__))
-main_file_name = main_file_info[0]
-main_file_extension = main_file_info[1]
-
-base_dir = os.path.dirname(os.path.abspath(__main__.__file__))
+base_dir = os.path.dirname(os.path.abspath(__file__))
 xqtive_dir = f"{base_dir}/../xqtive"
 modules_dir = f"{base_dir}/modules"
+certs_dir = f"{base_dir}/certs"
 
 # Get name and path of config file
-config_file_name = main_file_name + "_config.json"
+config_file_name = f"{os.path.splitext(__file__)[0]}_config.json"
 config_filepath = os.path.join(base_dir, "config", config_file_name)
-
-# Get certs dir
-certs_dir = f"{base_dir}/certs"
 
 # Add directories to sys.path
 sys.path.append(xqtive_dir)
