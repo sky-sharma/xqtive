@@ -177,27 +177,42 @@ class XQtiveQueue():
         # All predefined priorities are ABOVE normal.
         self.hi_priority_states = hi_priority_states
 
-    def put(self, state_and_params, **optional):
-        # If state_to_exec is one of the ones in self.priority_per_state then retrieve
-        # corresponding priority. Otherwise priority is normal_state_priority.
+    def put(self, state_and_params, priority_qual):
+        """
+        The state about to be enqueued will be given a priority depending on
+        (1) where it was requested from and (2) whether it is designated as a
+        hi_priority state.  The priority_qual defines these criteria.  These are the meanings
+        of priority_qual:
+        1. "from_sequence": the state originated in a sequence file, so enqueue it with NORMAL
+        priority EVEN if it is designated as hi_priority. Otherwise a state in the middle of a
+        sequence file could invalidate the rest of the sequence file.
+        2. "from_iot": the state originated from the cloud (IoT). If it is a designated hi_priority
+        state enqueue it with HIGH priority, otherwise with NORMAL priority.
+        3. "sub_state": the state about to be enqueued is a sub_state of the caller state. If the
+        sub_state is designated as hi_priority then enqueue it with HIGH priority, which invalidates
+        all other states in the queue. Otherwise enqueue it with a higher priority than the caller state
+        (i.e. subtract 1 from priority of caller state), unless caller is already at HIGH priority.
+        4. "repeated_wait_poll": states "_WaitUntil" and "_PollUntil" are unique in that they call themselves
+        until condition(s) are met. If one of these calls itself, then we set the priority of the called to the
+        same as the caller state UNLESS the caller state's.
+        """
         state_to_exec = state_and_params[0]
 
-        # See if state to put is a "substate" which means the priority should be
-        # one less than the superstate that called it. If the state is NOT a substate
-        # Check if it is a hi_priority_state and send the corresponding priority (= 0).
-        # Else send NORMAL priority.
-        substate_flag = optional.get("substate")
-        if substate_flag == None:
+        if priority_qual == "from_sequence":
+            priority_to_use = self.priority_values["NORMAL"]
+        elif priority_qual == "from_iot":
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
             else:
                 priority_to_use = self.priority_values["NORMAL"]
-        elif substate_flag == True:
-            if self.last_state_priority > 0:
+        elif priority_qual == "sub_state":
+            if state_to_exec in self.hi_priority_states:
+                priority_to_use = self.priority_values["HIGH"]
+            elif self.last_state_priority > 0:
                 priority_to_use = self.last_state_priority - 1
             else:
                 priority_to_use = self.last_state_priority
-        else:
+        elif priority_qual == "repeated_wait_poll":
             priority_to_use = self.last_state_priority
 
         self.put_count += 1
@@ -228,6 +243,8 @@ def xqtive_state_machine(object):
     config = object.get("config")
     process_name = "xqtive_state_machine"
     xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
+    sequence_names = xqtive_helpers.get_sequence_names(config)
+    iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
     while True:
         try:
             # Get dict containing both the state to execute and parameters needed by that state.
@@ -239,7 +256,7 @@ def xqtive_state_machine(object):
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
             if state_to_exec not in ["_WaitUntil"]:
-                iot_rw_queue.put(state_and_params)
+                iot_rw_queue.put({"type": "state_to_run", "value": state_and_params})
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
             else:
@@ -247,7 +264,7 @@ def xqtive_state_machine(object):
 
             # If a state placed a feedback message to publish, then publish it and clear out the message
             if sm.feedback_msg != None:
-                iot_rw_queue.put(sm.feedback_msg)
+                iot_rw_queue.put({"type": "state_feedback", "value": sm.feedback_msg})
                 sm.feedback_msg = None
 
             if returned != None:
@@ -269,14 +286,14 @@ def xqtive_state_machine(object):
                     for state_and_params in next_states_params:
                         next_state_to_exec = state_and_params[0]
 
-                        # Set substate flag to True unless next state is a repeat of this one and is a "_WaitUntil" or "_PollUntil".
-                        # If the substate flag is True then the next state will be enqueued at a higher priority
+                        # Set priority_qual "sub_state" unless next state is a repeat of this one and is a "_WaitUntil" or "_PollUntil".
+                        # If the priority_qual flag is True then the next state will be enqueued at a higher priority
                         # than the last one. Else the next state is enqueued at the same priority as the last one.
                         if next_state_to_exec == state_to_exec and next_state_to_exec in ["_WaitUntil", "_PollUntil"]:
-                            substate_flag = False
+                            priority_qual = "repeated_wait_poll"
                         else:
-                            substate_flag = True
-                        states_queue.put(state_and_params, substate=substate_flag)
+                            priority_qual = "sub_state"
+                        states_queue.put(state_and_params, priority_qual)
         except Exception as e:
             xqtive_state_machine_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
             pass
