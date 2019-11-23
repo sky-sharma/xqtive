@@ -50,32 +50,74 @@ class XqtiveStates(object):
 
     def SLEEP(self, params):
         """
-        Method using time.sleep
+        Blocking wait using time.sleep
+        Format: SLEEP;10
         """
         time.sleep(float(params[0]))
 
     def WAIT(self, params):
         """
-        Non-blocking Wait. Achieved by offloading to WaitUntilDeadline state
+        Non-blocking wait. Achieved by offloading to WaitUntilDeadline state
+        Format: WAIT;10
         """
         self.wait_deadline = time.time() + float(params[0])
-        next_states = [["WaitUntilDeadline"]]    # Send as list of lists
+        next_states = [["WaitUntil"]]    # Send as list of lists
         return next_states
 
-    def WaitUntilDeadline(self):
+    def WaitUntil(self):
         """
-        Offloaded from WAIT state. Non-blocking.
+        Offloaded from WAIT state. We keep coming back to this state until
+        a deadline is reached. Can be preempted by hi_priority_state (e.g. SHUTDOWN)
         """
         if time.time() >= self.wait_deadline:
             # Waiting is done
             self.wait_deadline = 0
         else:
             time.sleep(self.wait_resolution)
-            next_states_params = [["WaitUntilDeadline"]]    # Send as list of lists
+            next_states_params = [["WaitUntil"]]    # Send as list of lists
             return next_states_params
+
+    def POLL(self, params):
+        """
+        Non-blocking state that allows polling a variable until a time-limit is
+        reached OR the variable meets a comparison criterion.
+        Format: POLL;FLOAT;ANALOG_IN_0;20;ABOVE;30
+        """
+        type = params[0].upper()    # INT, FLOAT, BOOL, STR
+        self.poll_var = params[1]
+        self.poll_time_limit = float(params[2])    # seconds
+        self.poll_comparison = params[3].upper()    # MATCH, ABOVE, BELOW, BETWEEN
+        if self.poll_comparison == "MATCH":
+            if type == "INT":
+                self.poll_match = int(params[4])
+            elif type == "FLOAT":
+                self.poll_match = float(params[4])
+            elif type == "BOOL":
+                self.poll_match = bool(params[4])
+            elif type == "STR":
+                self.poll_match = params[4]
+        elif self.poll_comparison == "ABOVE":
+            if type == "INT":
+                self.poll_lo_thresh = int(params[4])
+            elif type == "FLOAT":
+                self.poll_lo_thresh = float(params[4])
+        elif self.poll_comparison == "BELOW":
+            if type == "INT":
+                self.poll_hi_thresh = int(params[4])
+            elif type == "FLOAT":
+                self.poll_hi_thresh = float(params[4])
+        elif self.poll_comparison == "BETWEEN":
+            if type == "INT":
+                self.poll_hi_thresh = max(int(params[4]), int(params[5]))
+                self.poll_lo_thresh = min(int(params[4]), int(params[5]))
+            elif type == "FLOAT":
+                self.poll_hi_thresh = max(float(params[4]), float(params[5]))
+                self.poll_lo_thresh = min(float(params[4]), float(params[5]))
+
 
     def SHUTDOWN(self):
         return "SHUTDOWN"
+
 
 class XqtiveQueue():
     """
@@ -109,15 +151,19 @@ class XqtiveQueue():
         # one less than the superstate that called it. If the state is NOT a substate
         # Check if it is a hi_priority_state and send the corresponding priority (= 0).
         # Else send NORMAL priority.
-        if optional.get("substate", False):
+        substate_flag = optional.get("substate")
+        if substate_flag == None:
+            if state_to_exec in self.hi_priority_states:
+                priority_to_use = self.priority_values["HIGH"]
+            else:
+                priority_to_use = self.priority_values["NORMAL"]
+        elif substate_flag == True:
             if self.last_state_priority > 0:
                 priority_to_use = self.last_state_priority - 1
             else:
                 priority_to_use = self.last_state_priority
-        elif state_to_exec in self.hi_priority_states:
-            priority_to_use = self.priority_values["HIGH"]
         else:
-            priority_to_use = self.priority_values["NORMAL"]
+            priority_to_use = self.last_state_priority
 
         self.put_count += 1
         self.queue.put((priority_to_use, self.put_count, state_and_params))
@@ -157,7 +203,7 @@ def xqtive_state_machine(object):
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
-            if state_to_exec not in ["WaitUntilDeadline"]:
+            if state_to_exec not in ["WaitUntil", "PollUntil"]:
                 iot_rw_queue.put(state_and_params)
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
@@ -186,7 +232,16 @@ def xqtive_state_machine(object):
                     # If a list of states_params was returned, by last state, then enqueue them with
                     # one priority level higher (i.e. subtract 1) than super-state
                     for state_and_params in next_states_params:
-                        states_queue.put(state_and_params, substate=True)
+                        next_state_to_exec = state_and_params[0]
+
+                        # Set substate flag to True unless next state is a repeat of this one and is a "WaitUntil" or "PollUntil".
+                        # If the substate flag is True then the next state will be enqueued at a higher priority
+                        # than the last one. Else the next state is enqueued at the same priority as the last one.
+                        if next_state_to_exec == state_to_exec and next_state_to_exec in ["WaitUntil", "PollUntil"]:
+                            substate_flag = False
+                        else:
+                            substate_flag = True
+                        states_queue.put(state_and_params, substate=substate_flag)
         except Exception as e:
             xqtive_state_machine_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
             pass
