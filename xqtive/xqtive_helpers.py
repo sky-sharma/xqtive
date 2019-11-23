@@ -16,7 +16,6 @@ def iot_onmsg(msg):
     msg_payload = msg.payload
     dict_payload = json.loads(msg_payload)
     msg = dict_payload["message"]
-    print(msg)
     msg_array = msg.split(";")
 
     # Capitalize state: all states called from the outside have to be public.
@@ -62,7 +61,7 @@ def iot_rw(obj):
             else:
                 msg_dict = {"message": dequeued}
                 msg_str = json.dumps(msg_dict)
-                iot_comm.publish(publish_topic, msg_str, QoS=0)
+                iot_comm.publish(publish_topic, msg_str, QoS=1)
 
 
 def iot_close(iot_comm):
@@ -74,16 +73,20 @@ def create_logger(logger_name, config):
     return logger
 
 def launch_state_machine(state_machine_class, config, certs_dir):
+    # Create state machine object
     state_machine = state_machine_class(config)
     launched_processes = []
-    # Create managed PriorityQueue for states
-    states_queue = xqtive.XqtiveQueue(state_machine.priority_values, state_machine.hi_priorities)
 
+    # Create managed PriorityQueue for states
+    states_queue = xqtive.XqtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
+
+    # Create managed queue for sending messages to process that writes to IoT
     xqtive.XqtiveSyncMgr.register("Queue", Queue)
     iot_rw_queue_mgr = xqtive.XqtiveSyncMgr()
     iot_rw_queue_mgr.start()
     iot_rw_queue = iot_rw_queue_mgr.Queue()
 
+    # Launch IoT process which receives messages to publish to IoT
     iot_rw_cfg = {
         "certs_dir": certs_dir,
         "states_queue": states_queue,
@@ -93,6 +96,7 @@ def launch_state_machine(state_machine_class, config, certs_dir):
     iot_rw_process.start()
     launched_processes.append(iot_rw_process)
 
+    # Launch state_machine process
     state_machine_cfg = {
         "state_machine": state_machine,
         "config": config,
@@ -101,8 +105,10 @@ def launch_state_machine(state_machine_class, config, certs_dir):
     state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
     state_machine_process.start()
     launched_processes.append(state_machine_process)
+
     processes_and_queues = {
         "processes": launched_processes,
         "states_queue": states_queue,
         "iot_rw_queue": iot_rw_queue}
+
     return processes_and_queues
