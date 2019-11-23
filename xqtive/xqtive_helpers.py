@@ -20,9 +20,15 @@ def state_params_str_to_array(state_params_str):
     Take a ';' separated state_params_str and return a state_params_array with capitalized state
     """
     state_and_params = state_params_str.split(";")
+
+    # Trim whitespace from both ends of states, params
+    state_and_params_stripped = []
+    for element in state_and_params:
+        state_and_params_stripped.append(element.strip())
+
     # Capitalize state: all states called from the outside have to be public.
     # Public states are indicated by being named all upper case
-    state_and_params_with_cap_state = [state_and_params[0].upper()] + state_and_params[1:]
+    state_and_params_with_cap_state = [state_and_params_stripped[0].upper()] + state_and_params_stripped[1:]
     return state_and_params_with_cap_state
 
 def read_sequence_file(sequence_filepath):
@@ -43,7 +49,8 @@ def read_sequence_file(sequence_filepath):
 def iot_onmsg(msg):
     msg_payload = msg.payload
     dict_payload = json.loads(msg_payload)
-    msg = dict_payload["message"]
+    type = dict_payload["type"].strip().lower()    # Remove whitespace from both ends and make lower-case
+    value = dict_payload["value"].strip()
     """
     msg_array = msg.split(";")
 
@@ -51,14 +58,20 @@ def iot_onmsg(msg):
     # Public states are indicated by being named all upper case
     msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
     """
-    state_and_params = state_params_str_to_array(msg)
-    states_queue.put(state_and_params)
+    if type == "run_sequence":
+        states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}")
+        for state_and_params in states_and_params:
+            states_queue.put(state_and_params)
+    elif type == "run_state":
+        state_and_params = state_params_str_to_array(value)
+        states_queue.put(state_and_params)
 
 def iot_rw(obj):
     certs_dir = obj["certs_dir"]
     global states_queue
     states_queue = obj["states_queue"]
     iot_rw_queue = obj["iot_rw_queue"]
+    global config
     config = obj["config"]
     # Configure connection to IoT broker
     iot_broker = config["iot"]["broker_address"]
