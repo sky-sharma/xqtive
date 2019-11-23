@@ -2,6 +2,7 @@
   "log_level": 20,
   "states":
   {
+    "normal_priority": 999999,
     "wait_resolution": 1
   },
   "iot":
