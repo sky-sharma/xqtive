@@ -21,9 +21,9 @@ import xqtive_helpers
 config = xqtive_helpers.read_config(config_filepath)
 
 # Import State Machine Class and create a State Machine.
-from xqtive_example_state_machine import XqtiveExampleStateMachine
+from xqtive_example_state_machine import XQtiveExampleStateMachine
 
-state_machine_launcher_returned = xqtive_helpers.launch_state_machine(XqtiveExampleStateMachine, config, certs_dir)
+state_machine_launcher_returned = xqtive_helpers.launch_state_machine(XQtiveExampleStateMachine, config, certs_dir)
 state_machine_processes = state_machine_launcher_returned["processes"]
 
 # Wait till all processes have exited before killing main process
