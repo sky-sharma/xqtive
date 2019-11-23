@@ -3,7 +3,7 @@
   "states":
   {
     "normal_priority": 999999,
-    "wait_resolution": 1
+    "sleep_time": 1
   },
   "iot":
 	{
