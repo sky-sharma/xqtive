@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import logging
@@ -31,6 +32,12 @@ def state_params_str_to_array(state_params_str):
     state_and_params_with_cap_state = [state_and_params_stripped[0].upper()] + state_and_params_stripped[1:]
     return state_and_params_with_cap_state
 
+
+def get_sequence_names(config):
+    sequence_names = []
+    sequence_names += [filename for filename in os.listdir(config["sequences_dir"]) if filename.endswith(".seq")]
+    return sequence_names
+
 def read_sequence_file(sequence_filepath):
     """
     Read a sequence file and convert to states_and_params list of lists
@@ -46,6 +53,7 @@ def read_sequence_file(sequence_filepath):
             states_and_params.append(state_and_params)
     return states_and_params
 
+
 def iot_onmsg(msg):
     msg_payload = msg.payload
     dict_payload = json.loads(msg_payload)
@@ -59,53 +67,62 @@ def iot_onmsg(msg):
     msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
     """
     if type == "run_sequence":
-        states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}")
+        states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
         for state_and_params in states_and_params:
-            states_queue.put(state_and_params)
+            states_queue.put(state_and_params, "from_sequence")
     elif type == "run_state":
         state_and_params = state_params_str_to_array(value)
-        states_queue.put(state_and_params)
+        states_queue.put(state_and_params, "from_iot")
 
 def iot_rw(obj):
-    certs_dir = obj["certs_dir"]
+    certs_dir = obj.get("certs_dir")
     global states_queue
-    states_queue = obj["states_queue"]
-    iot_rw_queue = obj["iot_rw_queue"]
+    states_queue = obj.get("states_queue")
+    iot_rw_queue = obj.get("iot_rw_queue")
     global config
-    config = obj["config"]
-    # Configure connection to IoT broker
-    iot_broker = config["iot"]["broker_address"]
-    iot_port = config["iot"]["broker_port"]
-    subscribe_topic = config["iot"]["subscribe_topic"]
-    publish_topic = config["iot"]["publish_topic"]
-    iot_ca_cert_path = f"{certs_dir}/{config['iot']['ca_cert']}"
-    iot_client_cert_path = f"{certs_dir}/{config['iot']['client_cert']}"
-    iot_client_key_path = f"{certs_dir}/{config['iot']['client_key']}"
+    config = obj.get("config")
+    process_name = "iot_rw"
+    iot_rw_logger = create_logger(process_name, config)
+    try:
+        # Configure connection to IoT broker
+        iot_broker = config["iot"]["broker_address"]
+        iot_port = config["iot"]["broker_port"]
+        subscribe_topic = config["iot"]["subscribe_topic"]
+        publish_topic = config["iot"]["publish_topic"]
+        iot_ca_cert_path = f"{certs_dir}/{config['iot']['ca_cert']}"
+        iot_client_cert_path = f"{certs_dir}/{config['iot']['client_cert']}"
+        iot_client_key_path = f"{certs_dir}/{config['iot']['client_key']}"
+    except Exception as e:
+        iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
 
     iot_connected = False
     while True:
-        if not iot_connected:
-            try:
-                # A connection to iot is established at the beginning and if publish fails
-                iot_comm = AWSIoTMQTTClient("xqtive")
-                iot_comm.onMessage = iot_onmsg
-                iot_comm.configureEndpoint(iot_broker, iot_port)
-                iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
-                iot_comm.connect()
-                iot_comm.subscribe(subscribe_topic, 1, None)
-                iot_connected = True
-            except Exception as e:
-                # If there was an error during connection close and wait before trying again
-                iot_comm.close()
-                time.sleep(config["iot"]["wait_between_reconn_attempts"])
-        else:
-            dequeued = iot_rw_queue.get()
-            if dequeued == "SHUTDOWN":
-                break
+        try:
+            if not iot_connected:
+                try:
+                    # A connection to iot is established at the beginning and if publish fails
+                    iot_comm = AWSIoTMQTTClient("xqtive")
+                    iot_comm.onMessage = iot_onmsg
+                    iot_comm.configureEndpoint(iot_broker, iot_port)
+                    iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
+                    iot_comm.connect()
+                    iot_comm.subscribe(subscribe_topic, 1, None)
+                    iot_connected = True
+                except Exception as e:
+                    # If there was an error during connection close and wait before trying again
+                    iot_comm.close()
+                    time.sleep(config["iot"]["wait_between_reconn_attempts"])
             else:
-                msg_dict = {"message": dequeued}
-                msg_str = json.dumps(msg_dict)
-                iot_comm.publish(publish_topic, msg_str, QoS=1)
+                dequeued = iot_rw_queue.get()
+                if dequeued == "SHUTDOWN":
+                    break
+                else:
+                    type = dequeued["type"]
+                    msg_dict = dequeued
+                    msg_str = json.dumps(msg_dict)
+                    iot_comm.publish(publish_topic, msg_str, QoS=1)
+        except Exception as e:
+            iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
 
 
 def iot_close(iot_comm):
