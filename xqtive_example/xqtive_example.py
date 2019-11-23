@@ -4,6 +4,7 @@ import sys
 base_dir = os.path.dirname(os.path.abspath(__file__))
 xqtive_dir = f"{base_dir}/../xqtive"
 modules_dir = f"{base_dir}/modules"
+sequences_dir = f"{base_dir}/sequences"
 certs_dir = f"{base_dir}/certs"
 
 # Get name and path of config file
@@ -17,8 +18,9 @@ sys.path.append(modules_dir)
 # Import xqtive modules
 import xqtive_helpers
 
-# Read config file
+# Read config file; add sequences_dir to config dict
 config = xqtive_helpers.read_config(config_filepath)
+config["sequences_dir"] = sequences_dir
 
 # Import State Machine Class and create a State Machine.
 from xqtive_example_state_machine import XQtiveExampleStateMachine
