@@ -1,6 +1,5 @@
 # xqtive.py
 import time
-import logging
 import xqtive_helpers
 from queue import PriorityQueue
 from multiprocessing.managers import SyncManager
@@ -21,24 +20,23 @@ class XqtiveStates(object):
         """
         Defines private data that all states share
         """
-
-        # Set hi_priority values for important states
-        self.priority_values = {"HIGHEST": 0, "HIGH": 1, "INTERNAL": 2, "NORMAL": 3}
-        self.hi_priorities = {"SHUTDOWN": "HIGH"}
+        self.feedback_msg = None
+        self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
+        self.hi_priority_states = ["SHUTDOWN"]
         try:
-            # See if there are any custom states with hi priorities
-            cust_hi_priorities = self.cust_hi_priorities
-            if cust_hi_priorities == None:
-                cust_hi_priorities = {}
+            # See if there are any custom hi_priority states
+            if self.cust_hi_priority_states == None:
+                self.cust_hi_priority_states = {}
         except:
-            cust_hi_priorities = {}
-            pass
+            self.cust_hi_priority_states = {}
 
         # Make sure all priority entries are upper case
-        cust_hi_priorities.update((key, val.upper()) for key, val in cust_hi_priorities.items())
+        #cust_hi_priorities.update((key, val.upper()) for key, val in cust_hi_priorities.items())
 
-        # Merge existing hi_priorities dict with custom ones
-        self.hi_priorities.update(cust_hi_priorities)
+        # Merge existing hi_priority_states with custom ones
+        hi_priority_states = set(self.hi_priority_states)
+        cust_hi_priority_states = set(self.cust_hi_priority_states)
+        self.hi_priority_states = list(hi_priority_states | cust_hi_priority_states)
 
         # wait_resolution is the minimum amount of sleep time
         # while executing a Wait. Needed to avoid hogging the CPU.
@@ -87,7 +85,7 @@ class XqtiveQueue():
     to break any ties between multiple items with the same priority. This is because we DON'T
     want comparisons between the actual items in case the priorities are the same.
     """
-    def __init__(self, priority_values, hi_priorities):
+    def __init__(self, priority_values, hi_priority_states):
         """
         Create managed Priority queue shared between processes
         """
@@ -100,27 +98,37 @@ class XqtiveQueue():
         self.priority_values = priority_values
 
         # All predefined priorities are ABOVE normal.
-        self.hi_priorities = hi_priorities
+        self.hi_priority_states = hi_priority_states
 
     def put(self, state_and_params, **optional):
         # If state_to_exec is one of the ones in self.priority_per_state then retrieve
         # corresponding priority. Otherwise priority is normal_state_priority.
         state_to_exec = state_and_params[0]
 
-        # Check if an optional priority_to_use was sent. If not see if this state has a predefined hi_priority. Else use normal priority.
-        priority = optional.get("priority_to_use", self.hi_priorities.get(state_to_exec, "NORMAL"))
+        # See if state to put is a "substate" which means the priority should be
+        # one less than the superstate that called it. If the state is NOT a substate
+        # Check if it is a hi_priority_state and send the corresponding priority (= 0).
+        # Else send NORMAL priority.
+        if optional.get("substate", False):
+            if self.last_state_priority > 0:
+                priority_to_use = self.last_state_priority - 1
+            else:
+                priority_to_use = self.last_state_priority
+        elif state_to_exec in self.hi_priority_states:
+            priority_to_use = self.priority_values["HIGH"]
+        else:
+            priority_to_use = self.priority_values["NORMAL"]
 
         self.put_count += 1
-        self.queue.put((self.priority_values[priority], self.put_count, state_and_params))
+        self.queue.put((priority_to_use, self.put_count, state_and_params))
 
     def get(self):
         gotten_item = self.queue.get()
         self.last_state_priority = gotten_item[0]
         gotten_item_data = gotten_item[2]    # Skip element 1 which is put_count
 
-        # If gotten item is of High (1) or Highest (0)
-        # then none of the other items already in the queue are to be handled. So Flush queue.
-        if self.last_state_priority in [0, 1]:
+        # If gotten item is of High (0) then none of the other items already in the queue are to be handled. So Flush queue.
+        if self.last_state_priority == 0:
             while not self.queue.empty():
                 try:
                     self.queue.get(False)
@@ -133,10 +141,10 @@ class XqtiveQueue():
 
 
 def xqtive_state_machine(object):
-    sm = object["state_machine"]
-    states_queue = object["states_queue"]
-    iot_rw_queue = object["iot_rw_queue"]
-    config = object["config"]
+    sm = object.get("state_machine")
+    states_queue = object.get("states_queue")
+    iot_rw_queue = object.get("iot_rw_queue")
+    config = object.get("config")
     process_name = "xqtive_state_machine"
     xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
     while True:
@@ -148,13 +156,19 @@ def xqtive_state_machine(object):
             params = state_and_params[1:]    # params may be missing depending on the type of state
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
+            # Send info. about states being run to IoT except for some states that are called repeatedly
             if state_to_exec not in ["WaitUntilDeadline"]:
-                # Send info. about states being run to IoT except for some states that are called repeatedly
                 iot_rw_queue.put(state_and_params)
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
             else:
                 returned = eval(f"sm.{state_to_exec}(params)")
+
+            # If a state placed a feedback message to publish, then publish it and clear out the message
+            if sm.feedback_msg != None:
+                iot_rw_queue.put(sm.feedback_msg)
+                sm.feedback_msg = None
+
             if returned != None:
                 if returned == "SHUTDOWN":
                     # If SHUTDOWN received then SHUTDOWN state was the last to run
@@ -162,15 +176,17 @@ def xqtive_state_machine(object):
                     break
                 elif type(returned).__name__ == "list":
                     if type(returned[0]).__name__ == "list":
-                        # If returned contains list of lists
+                        # If returned contains list of lists. We need to reverse that list
+                        # because dequeueing happens in descending order of put_count
                         next_states_params = returned
                     else:
                         # If returned does not contain list of lists, it probably contains only one list.
                         # Turn that into list of lists to be consistent
                         next_states_params = [returned]
-                    # If a list of states_params was returned, enqueue them
+                    # If a list of states_params was returned, by last state, then enqueue them with
+                    # one priority level higher (i.e. subtract 1) than super-state
                     for state_and_params in next_states_params:
-                        states_queue.put(state_and_params, priority_to_use="INTERNAL")
+                        states_queue.put(state_and_params, substate=True)
         except Exception as e:
             xqtive_state_machine_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
             pass
