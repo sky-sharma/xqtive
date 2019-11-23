@@ -1,5 +1,9 @@
 // First sequence file
  Pwr_Sply_ouTpuT ; 31 
 
+// Testing E-Stop
+pWr_sPlY_oFf
+
+
 // Test comment
     Pwr_Sply_ouTpuT     ;      987.6     
