@@ -12,16 +12,26 @@ def read_config(config_filepath):
         config = json.load(cfgFile)
     return(config)
 
+def state_params_str_to_array(state_params_str):
+    state_and_params = state_params_str.split(";")
+    # Capitalize state: all states called from the outside have to be public.
+    # Public states are indicated by being named all upper case
+    state_and_params_with_cap_state = [state_and_params[0].upper()] + state_and_params[1:]
+    return state_and_params_with_cap_state
+
 def iot_onmsg(msg):
     msg_payload = msg.payload
     dict_payload = json.loads(msg_payload)
     msg = dict_payload["message"]
+    """
     msg_array = msg.split(";")
 
     # Capitalize state: all states called from the outside have to be public.
     # Public states are indicated by being named all upper case
     msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
-    states_queue.put(msg_arr_with_cap_state)
+    """
+    state_and_params = state_params_str_to_array(msg)
+    states_queue.put(state_and_params)
 
 def iot_rw(obj):
     certs_dir = obj["certs_dir"]
