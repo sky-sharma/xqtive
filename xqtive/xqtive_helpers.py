@@ -8,16 +8,37 @@ from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
 def read_config(config_filepath):
+    """
+    Read config JSON file and return as dict
+    """
     with open(config_filepath) as cfgFile:
         config = json.load(cfgFile)
     return(config)
 
 def state_params_str_to_array(state_params_str):
+    """
+    Take a ';' separated state_params_str and return a state_params_array with capitalized state
+    """
     state_and_params = state_params_str.split(";")
     # Capitalize state: all states called from the outside have to be public.
     # Public states are indicated by being named all upper case
     state_and_params_with_cap_state = [state_and_params[0].upper()] + state_and_params[1:]
     return state_and_params_with_cap_state
+
+def read_sequence_file(sequence_filepath):
+    """
+    Read a sequence file and convert to states_and_params list of lists
+    """
+    seq_file = open(sequence_filepath, "r")
+    state_params_strs = seq_file.readlines()
+    states_and_params = []
+    for state_params_str in state_params_strs:
+        if state_params_str in ["\r", "\n", "\r\n"] or state_params_str.startswith("//"):    # Ignore blank and comment lines (start with '//')
+            pass
+        else:
+            state_and_params = state_params_str_to_array(state_params_str)
+            states_and_params.append(state_and_params)
+    return states_and_params
 
 def iot_onmsg(msg):
     msg_payload = msg.payload
