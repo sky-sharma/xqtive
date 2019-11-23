@@ -78,11 +78,11 @@ def launch_state_machine(state_machine_class, config, certs_dir):
     launched_processes = []
 
     # Create managed PriorityQueue for states
-    states_queue = xqtive.XqtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
+    states_queue = xqtive.XQtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
 
     # Create managed queue for sending messages to process that writes to IoT
-    xqtive.XqtiveSyncMgr.register("Queue", Queue)
-    iot_rw_queue_mgr = xqtive.XqtiveSyncMgr()
+    xqtive.XQtiveSyncMgr.register("Queue", Queue)
+    iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
     iot_rw_queue_mgr.start()
     iot_rw_queue = iot_rw_queue_mgr.Queue()
 
