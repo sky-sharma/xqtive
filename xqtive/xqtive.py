@@ -4,11 +4,15 @@ import xqtive_helpers
 from queue import PriorityQueue
 from multiprocessing.managers import SyncManager
 
-# Create XqtiveSyncMgr
-class XqtiveSyncMgr(SyncManager):
+
+class XQtiveSyncMgr(SyncManager):
+    """
+    XQtiveSyncMgr
+    """
     pass
 
-class XqtiveStates(object):
+
+class XQtiveStates(object):
     """
     This class defines a generic state machine. Each method is a state.
     Child classes can be created which extend or override these states.
@@ -21,6 +25,9 @@ class XqtiveStates(object):
         Defines private data that all states share
         """
         self.feedback_msg = None
+        self.poll_lo_thresh = None
+        self.poll_hi_thresh = None
+        self.poll_match = None
         self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
         self.hi_priority_states = ["SHUTDOWN"]
         try:
@@ -38,15 +45,14 @@ class XqtiveStates(object):
         cust_hi_priority_states = set(self.cust_hi_priority_states)
         self.hi_priority_states = list(hi_priority_states | cust_hi_priority_states)
 
-        # wait_resolution is the minimum amount of sleep time
-        # while executing a Wait. Needed to avoid hogging the CPU.
-        # If one is not provided in the config, use default
-        default_wait_resolution = 0.1
+        # sleep_time (the minimum amount of time to sleep per call to this state)
+        # is needed to avoid hogging the CPU. If one is not provided in the config, use default
+        default_sleep_time = 0.1
         states_cfg = config.get("states")
         if states_cfg != None:
-            self.wait_resolution = states_cfg.get("wait_resolution", default_wait_resolution)
+            self.sleep_time = states_cfg.get("sleep_time", default_sleep_time)
         else:
-            self.wait_resolution = default_wait_resolution
+            self.sleep_time = default_sleep_time
 
     def SLEEP(self, params):
         """
@@ -57,35 +63,36 @@ class XqtiveStates(object):
 
     def WAIT(self, params):
         """
-        Non-blocking wait. Achieved by offloading to WaitUntilDeadline state
+        Non-blocking wait. Achieved by offloading to _WaitUntil state
         Format: WAIT;10
         """
         self.wait_deadline = time.time() + float(params[0])
-        next_states = [["WaitUntil"]]    # Send as list of lists
+        next_states = [["_WaitUntil"]]    # Send as list of lists
         return next_states
 
-    def WaitUntil(self):
+    def _WaitUntil(self):
         """
-        Offloaded from WAIT state. We keep coming back to this state until
+        Offloaded from WAIT state. Keep coming back to this state (i.e. non-blocking) until
         a deadline is reached. Can be preempted by hi_priority_state (e.g. SHUTDOWN)
         """
         if time.time() >= self.wait_deadline:
             # Waiting is done
             self.wait_deadline = 0
         else:
-            time.sleep(self.wait_resolution)
-            next_states_params = [["WaitUntil"]]    # Send as list of lists
+            time.sleep(self.sleep_time)
+            next_states_params = [["_WaitUntil"]]    # Send as list of lists
             return next_states_params
 
     def POLL(self, params):
         """
         Non-blocking state that allows polling a variable until a time-limit is
         reached OR the variable meets a comparison criterion.
-        Format: POLL;FLOAT;ANALOG_IN_0;20;ABOVE;30
+        Format example 1: POLL;20;FLOAT;ANALOG_IN_0;ABOVE;30
+        Format example 2: POLL;30;INT;DIG_WORD;BETWEEN;4;739
         """
-        type = params[0].upper()    # INT, FLOAT, BOOL, STR
-        self.poll_var = params[1]
-        self.poll_time_limit = float(params[2])    # seconds
+        self.poll_deadline = time.time() + float(params[0])    # seconds
+        type = params[1].upper()    # INT, FLOAT, BOOL, STR
+        self.poll_var = params[2]
         self.poll_comparison = params[3].upper()    # MATCH, ABOVE, BELOW, BETWEEN
         if self.poll_comparison == "MATCH":
             if type == "INT":
@@ -113,13 +120,41 @@ class XqtiveStates(object):
             elif type == "FLOAT":
                 self.poll_hi_thresh = max(float(params[4]), float(params[5]))
                 self.poll_lo_thresh = min(float(params[4]), float(params[5]))
+        next_states_params = [["_PollUntil"]]    # Send as list of lists
+        return next_states_params
 
+    def _PollUntil(self):
+        """
+        Offloaded from POLL state. Keep coming back to this state (i.e. non-blocking) until
+        a deadline is reached or a polled value satisfies a comparison criterion.
+        Can be preempted by hi_priority_state (e.g. SHUTDOWN)
+        """
+        qual_str = f"comparison: {self.poll_comparison}; match: {self.poll_match}; lo_thresh: {self.poll_lo_thresh}; hi_thresh: {self.poll_hi_thresh}"
+        if time.time() >= self.poll_deadline:
+            # Waiting is done
+            self.poll_deadline = 0
+            self.feedback_msg = f"Poll failed. Time Limit Reached. '{self.poll_var}' value: {self.poll_value}; {qual_str}"
+        else:
+            # Check if polled var has satisfied criterion
+            self.poll_value = self._ReadPollVar(self.poll_var)
+            if self.poll_comparison == "ABOVE":
+                criterion_satisfied = self.poll_value > self.poll_lo_thresh
+            elif self.poll_comparison == "BELOW":
+                criterion_satisfied = self.poll_value < self.poll_hi_thresh
+            elif self.poll_comparison == "BETWEEN":
+                criterion_satisfied = self.poll_lo_thresh <= self.poll_value <= self.poll_hi_thresh
+            if criterion_satisfied:
+                self.feedback_msg = f"Poll succeeded. '{self.poll_var}' value: {self.poll_value}; {qual_str}"
+            else:
+                time.sleep(self.sleep_time)
+                next_states_params = [["_PollUntil"]]    # Send as list of lists
+                return next_states_params
 
     def SHUTDOWN(self):
         return "SHUTDOWN"
 
 
-class XqtiveQueue():
+class XQtiveQueue():
     """
     A class that takes care of putting / getting unique items in a PriorityQueue.
     The class wraps the functionality of including a priority with the put item AND
@@ -131,8 +166,8 @@ class XqtiveQueue():
         """
         Create managed Priority queue shared between processes
         """
-        XqtiveSyncMgr.register("PriorityQueue", PriorityQueue)
-        states_queue_mgr = XqtiveSyncMgr()
+        XQtiveSyncMgr.register("PriorityQueue", PriorityQueue)
+        states_queue_mgr = XQtiveSyncMgr()
         states_queue_mgr.start()
 
         self.queue = states_queue_mgr.PriorityQueue()
@@ -203,7 +238,7 @@ def xqtive_state_machine(object):
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
-            if state_to_exec not in ["WaitUntil", "PollUntil"]:
+            if state_to_exec not in ["_WaitUntil"]:
                 iot_rw_queue.put(state_and_params)
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
@@ -234,10 +269,10 @@ def xqtive_state_machine(object):
                     for state_and_params in next_states_params:
                         next_state_to_exec = state_and_params[0]
 
-                        # Set substate flag to True unless next state is a repeat of this one and is a "WaitUntil" or "PollUntil".
+                        # Set substate flag to True unless next state is a repeat of this one and is a "_WaitUntil" or "_PollUntil".
                         # If the substate flag is True then the next state will be enqueued at a higher priority
                         # than the last one. Else the next state is enqueued at the same priority as the last one.
-                        if next_state_to_exec == state_to_exec and next_state_to_exec in ["WaitUntil", "PollUntil"]:
+                        if next_state_to_exec == state_to_exec and next_state_to_exec in ["_WaitUntil", "_PollUntil"]:
                             substate_flag = False
                         else:
                             substate_flag = True
