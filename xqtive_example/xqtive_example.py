@@ -28,7 +28,7 @@ all_sm_names_classes = [
     {"sm_name": "controller", "sm_class": ExampleController},
     {"sm_name": "resource", "sm_class": ExampleResource}]
 
-all_sm_queues_processes = xqtive_helpers.launch_all_state_machines(all_sm_names_classes, config, certs_dir, dependents=["resource"])
+all_sm_queues_processes = xqtive_helpers.launch_state_machines(all_sm_names_classes, config, certs_dir, dependents=["resource"])
 sm_processes = all_sm_queues_processes["all_sm_processes"]
 
 #state_machine_processes = controller_processes
