@@ -25,23 +25,29 @@ config["sequences_dir"] = sequences_dir
 # Import State Machine Class and create State Machines.
 from xqtive_example_state_machines import ExampleController, ExampleResource
 
+# Create controller state_machine and queues
+ctrl_sm_queues_returned = xqtive_helpers.create_state_machine_and_queues("controller", ExampleController, config)
+
+# Create resource state_machine and queues
+rsrc_sm_queues_returned = xqtive_helpers.create_state_machine_and_queues("resource", ExampleResource, config)
+
+all_state_machines_queues = {"controller": ctrl_sm_queues_returned, "resource": rsrc_sm_queues_returned}
+
 # Launch Controller State Machine
-ctrl_launcher_returned = xqtive_helpers.launch_state_machine("controller", ExampleController, config, certs_dir, dependents=["resource"])
-controller_processes = ctrl_launcher_returned["processes"]
-controller_sm = ctrl_launcher_returned["state_machine"]
-controller_queue = ctrl_launcher_returned["states_queue"]
+controller_processes = xqtive_helpers.launch_state_machine("controller", all_state_machines_queues, config, certs_dir, dependents=["resource"])
+#controller_processes = ctrl_launcher_returned["processes"]
+#controller_queue = ctrl_launcher_returned["states_queue"]
 
 # Launch resource state machine
-resource_launcher_returned = xqtive_helpers.launch_state_machine("resource", ExampleResource, config, certs_dir)
-resource_processes = resource_launcher_returned["processes"]
-resource_sm = resource_launcher_returned["state_machine"]
-resource_queue = resource_launcher_returned["states_queue"]
+resource_processes = xqtive_helpers.launch_state_machine("resource", all_state_machines_queues, config, certs_dir)
+#resource_processes = resource_launcher_returned["processes"]
+#resource_queue = resource_launcher_returned["states_queue"]
 
 state_machine_processes = controller_processes + resource_processes
 
-# Exchange queues
-controller_sm._set_other_sm_queues([resource_queue])
-resource_sm._set_other_sm_queues([controller_queue])
+# Put all_state_queues in shared place
+#all_state_queues = {"controller": controller_queue, "resource": resource_queue}
+#config["all_state_queues"] = all_state_queues
 
 #state_machine_processes = controller_processes
 # Wait till all processes have exited before killing main process
