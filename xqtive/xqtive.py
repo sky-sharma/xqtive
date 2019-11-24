@@ -158,8 +158,12 @@ class XQtiveStateMachine(object):
     def SHUTDOWN(self):
         # Send SHUTDOWN messages to all other State Machine queues
         self.all_sm_queues.pop(self.sm_name)
-        for sm_queues in list(self.all_sm_queues.values()):
-            sm_queues["states_queue"].put([["SHUTDOWN"]], "from_sm")
+        try:
+            for sm_queues in list(self.all_sm_queues.values()):
+                sm_queues["states_queue"].put(["SHUTDOWN"], "from_sm")
+        except:
+            # We're passing on errors here because the state_machine we are trying to stop may already have stopped
+            pass
         return "SHUTDOWN"
 
 
