@@ -156,7 +156,10 @@ class XQtiveStateMachine(object):
                 return next_states_params
 
     def SHUTDOWN(self):
-        print(self.all_sm_queues)
+        # Send SHUTDOWN messages to all other State Machine queues
+        self.all_sm_queues.pop(self.sm_name)
+        for sm_queues in list(self.all_sm_queues.values()):
+            sm_queues["states_queue"].put([["SHUTDOWN"]], "from_sm")
         return "SHUTDOWN"
 
 
@@ -207,13 +210,14 @@ class XQtiveQueue():
         1. "from_sequence": the state originated in a sequence file, so enqueue it with NORMAL
         priority EVEN if it is designated as hi_priority. Otherwise a state in the middle of a
         sequence file could invalidate the rest of the sequence file.
-        2. "from_iot": the state originated from the cloud (IoT). If it is a designated hi_priority
-        state enqueue it with HIGH priority, otherwise with NORMAL priority.
-        3. "sub_state": the state about to be enqueued is a sub_state of the caller state. If the
+        2. "from_iot": the state originated from the cloud (IoT). If it is a designated hi_priority state
+        enqueue it with HIGH priority, otherwise with NORMAL priority.
+        3. "from_sm": Same as 2 above.
+        4. "sub_state": the state about to be enqueued is a sub_state of the caller state. If the
         sub_state is designated as hi_priority then enqueue it with HIGH priority, which invalidates
         all other states in the queue. Otherwise enqueue it with a higher priority than the caller state
         (i.e. subtract 1 from priority of caller state), unless caller is already at HIGH priority.
-        4. "repeated_wait_poll": states "_WaitUntil" and "_PollUntil" are unique in that they call themselves
+        5. "repeated_wait_poll": states "_WaitUntil" and "_PollUntil" are unique in that they call themselves
         until condition(s) are met. If one of these calls itself, then we set the priority of the called to the
         same as the caller state UNLESS the caller state's.
         """
@@ -221,7 +225,7 @@ class XQtiveQueue():
 
         if priority_qual == "from_sequence":
             priority_to_use = self.priority_values["NORMAL"]
-        elif priority_qual == "from_iot":
+        elif priority_qual in ["from_iot", "from_sm"]:
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
             else:
