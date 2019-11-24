@@ -147,21 +147,21 @@ def create_logger(logger_name, config):
     return logger
 
 
-def launch_state_machines(all_sm_names_classes, config, certs_dir, **optional):
+def launch_state_machines(sm_defs, config, certs_dir, **optional):
     all_sm_queues = {}
-    for sm_name_class in all_sm_names_classes:
-        sm_name = sm_name_class["sm_name"]
+    for sm_def in sm_defs:
+        sm_name = sm_def["sm_name"]
         sm_queues = create_sm_queues(config)
         all_sm_queues[sm_name] = sm_queues
     all_sm = {}
-    for sm_name_class in all_sm_names_classes:
-        sm_name = sm_name_class["sm_name"]
-        sm_class = sm_name_class["sm_class"]
-        sm = create_sm(config, sm_name_class, all_sm_queues)
+    for sm_def in sm_defs:
+        sm_name = sm_def["sm_name"]
+        sm_class = sm_def["sm_class"]
+        sm = create_sm(config, sm_def, all_sm_queues)
         all_sm[sm_name] = sm
     all_sm_processes = []
-    for sm_name_class in all_sm_names_classes:
-        sm_name = sm_name_class["sm_name"]
+    for sm_def in sm_defs:
+        sm_name = sm_def["sm_name"]
         sm = all_sm[sm_name]
         sm_processes = launch_sm_processes(sm_name, sm, all_sm_queues, config, certs_dir, **optional)
         all_sm_processes += sm_processes
@@ -181,9 +181,9 @@ def create_sm_queues(config):
     sm_queues = {"states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
     return sm_queues
 
-def create_sm(config, sm_name_class, all_sm_queues):
-    sm_name = sm_name_class["sm_name"]
-    sm_class = sm_name_class["sm_class"]
+def create_sm(config, sm_def, all_sm_queues):
+    sm_name = sm_def["sm_name"]
+    sm_class = sm_def["sm_class"]
     sm = sm_class(sm_name, config, all_sm_queues)
     return sm
 
