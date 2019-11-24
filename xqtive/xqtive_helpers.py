@@ -4,14 +4,16 @@ import time
 import logging
 import xqtive
 from queue import Queue
-from multiprocessing import Process
+from multiprocessing import Process, Manager
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
 def read_config(config_filepath):
     """
-    Read config JSON file and return as dict
+    Read config JSON file and return as managed dict
     """
+    config_mgr = Manager()
+    config = config_mgr.dict()
     with open(config_filepath) as cfgFile:
         config = json.load(cfgFile)
     return(config)
@@ -55,24 +57,27 @@ def read_sequence_file(sequence_filepath):
 
 
 def iot_onmsg(msg):
-    msg_payload = msg.payload
-    dict_payload = json.loads(msg_payload)
-    type = dict_payload["type"].strip().lower()    # Remove whitespace from both ends and make lower-case
-    value = dict_payload["value"].strip()
-    """
-    msg_array = msg.split(";")
+    try:
+        msg_payload = msg.payload
+        dict_payload = json.loads(msg_payload)
+        type = dict_payload["type"].strip().lower()    # Remove whitespace from both ends and make lower-case
+        value = dict_payload["value"].strip()
+        """
+        msg_array = msg.split(";")
 
-    # Capitalize state: all states called from the outside have to be public.
-    # Public states are indicated by being named all upper case
-    msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
-    """
-    if type == "run_sequence":
-        states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
-        for state_and_params in states_and_params:
-            states_queue.put(state_and_params, "from_sequence")
-    elif type == "run_state":
-        state_and_params = state_params_str_to_array(value)
-        states_queue.put(state_and_params, "from_iot")
+        # Capitalize state: all states called from the outside have to be public.
+        # Public states are indicated by being named all upper case
+        msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
+        """
+        if type == "run_sequence":
+            states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
+            for state_and_params in states_and_params:
+                states_queue.put(state_and_params, "from_sequence")
+        elif type == "run_state":
+            state_and_params = state_params_str_to_array(value)
+            states_queue.put(state_and_params, "from_iot")
+    except Exception as e:
+        iot_rw_logger.error(f"ERROR; iot_onmsg; {e}")
 
 def iot_rw(obj):
     unique_name = obj.get("unique_name")
@@ -84,6 +89,7 @@ def iot_rw(obj):
     config = obj.get("config")
     dependents = obj.get("dependents")
     process_name = f"{unique_name}_iot_rw"
+    global iot_rw_logger
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
