@@ -147,6 +147,18 @@ def create_logger(logger_name, config):
     logger = logging.getLogger(logger_name)
     return logger
 
+def launch_state_machines(all_state_machine_names_classes, config, certs_dir, **optional):
+    all_sm_and_queues = {}
+    for sm_name_class in all_state_machine_names_classes:
+        sm_and_queues = create_state_machine_and_queues(sm_name_class["state_machine_name"], sm_name_class["state_machine_class"], config)
+        all_sm_and_queues[sm_name_class["state_machine_name"]] = sm_and_queues
+    all_sm_processes = []
+    for sm_name_class in all_state_machine_names_classes:
+        sm_processes = launch_state_machine_processes(sm_name_class["state_machine_name"], all_sm_and_queues, config, certs_dir, **optional)
+        all_sm_processes += sm_processes
+    to_return = {"all_sm_and_queues": all_sm_and_queues, "all_sm_processes": all_sm_processes}
+    return to_return
+
 def create_state_machine_and_queues(state_machine_name, state_machine_class, config):
     # Create state machine object
     state_machine = state_machine_class(config)
@@ -163,22 +175,9 @@ def create_state_machine_and_queues(state_machine_name, state_machine_class, con
     returned = {"state_machine": state_machine, "states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
     return returned
 
-def launch_state_machine(state_machine_name, all_state_machines_queues, config, certs_dir, **optional):
-    """
-    # Create state machine object
-    state_machine = state_machine_class(config)
-    """
+def launch_state_machine_processes(state_machine_name, all_state_machines_queues, config, certs_dir, **optional):
     launched_processes = []
-    """
-    # Create managed PriorityQueue for states
-    states_queue = xqtive.XQtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
 
-    # Create managed queue for sending messages to process that writes to IoT
-    xqtive.XQtiveSyncMgr.register("Queue", Queue)
-    iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
-    iot_rw_queue_mgr.start()
-    iot_rw_queue = iot_rw_queue_mgr.Queue()
-    """
     # Launch IoT process which receives messages to publish to IoT
     iot_rw_cfg = {
         "state_machine_name": state_machine_name,
@@ -202,13 +201,4 @@ def launch_state_machine(state_machine_name, all_state_machines_queues, config, 
     state_machine_process.start()
     launched_processes.append(state_machine_process)
 
-    """
-    processes_and_queues = {
-        "state_machine": state_machine,
-        "processes": launched_processes,
-        "states_queue": states_queue,
-        "iot_rw_queue": iot_rw_queue}
-
-    return processes_and_queues
-    """
     return launched_processes
