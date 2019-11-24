@@ -60,13 +60,6 @@ def iot_onmsg(msg):
         dict_payload = json.loads(msg_payload)
         type = dict_payload["type"].strip().lower()    # Remove whitespace from both ends and make lower-case
         value = dict_payload["value"].strip()
-        """
-        msg_array = msg.split(";")
-
-        # Capitalize state: all states called from the outside have to be public.
-        # Public states are indicated by being named all upper case
-        msg_arr_with_cap_state = [msg_array[0].upper()] + msg_array[1:]
-        """
         if type == "run_sequence":
             states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
             for state_and_params in states_and_params:
