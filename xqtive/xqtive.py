@@ -240,13 +240,13 @@ class XQtiveQueue():
 
 
 def xqtive_state_machine(obj):
-    state_machine_name = obj.get("state_machine_name")
-    sm = obj.get("state_machine")
+    sm_name = obj.get("sm_name")
+    sm = obj.get("sm")
     states_queue = obj.get("states_queue")
     iot_rw_queue = obj.get("iot_rw_queue")
     config = obj.get("config")
-    process_name = f"{state_machine_name}_xqtive_state_machine"
-    xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
+    process_name = f"{sm_name}_xqtive_sm"
+    xqtive_sm_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
     iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
     while True:
@@ -299,5 +299,5 @@ def xqtive_state_machine(obj):
                             priority_qual = "sub_state"
                         states_queue.put(state_and_params, priority_qual)
         except Exception as e:
-            xqtive_state_machine_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
+            xqtive_sm_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
             pass
