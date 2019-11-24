@@ -16,6 +16,7 @@ def read_config(config_filepath):
         config = json.load(cfgFile)
     return(config)
 
+
 def state_params_str_to_array(state_params_str):
     """
     Take a ';' separated state_params_str and return a state_params_array with capitalized state
@@ -37,6 +38,7 @@ def get_sequence_names(config):
     sequence_names = []
     sequence_names += [filename for filename in os.listdir(config["sequences_dir"]) if filename.endswith(".seq")]
     return sequence_names
+
 
 def read_sequence_file(sequence_filepath):
     """
@@ -69,6 +71,7 @@ def iot_onmsg(msg):
             states_queue.put(state_and_params, "from_iot")
     except Exception as e:
         iot_rw_logger.error(f"ERROR; iot_onmsg; {e}")
+
 
 def iot_rw(obj):
     sm_name = obj.get("sm_name")
@@ -137,24 +140,14 @@ def iot_rw(obj):
 def iot_close(iot_comm):
     iot_comm.disconnect()
 
+
 def create_logger(logger_name, config):
     logging.basicConfig(filename=f"/var/log/{logger_name}.log", format="%(asctime)s %(message)s", level=config["log_level"])
     logger = logging.getLogger(logger_name)
     return logger
 
-def launch_state_machines(all_sm_names_classes, config, certs_dir, **optional):
-    all_sm_and_queues = {}
-    for sm_name_class in all_sm_names_classes:
-        sm_and_queues = create_state_machine_and_queues(sm_name_class["sm_name"], sm_name_class["sm_class"], config)
-        all_sm_and_queues[sm_name_class["sm_name"]] = sm_and_queues
-    all_sm_processes = []
-    for sm_name_class in all_sm_names_classes:
-        sm_processes = launch_state_machine_processes(sm_name_class["sm_name"], all_sm_and_queues, config, certs_dir, **optional)
-        all_sm_processes += sm_processes
-    to_return = {"all_sm_and_queues": all_sm_and_queues, "all_sm_processes": all_sm_processes}
-    return to_return
 
-def launch_all_state_machines(all_sm_names_classes, config, certs_dir, **optional):
+def launch_state_machines(all_sm_names_classes, config, certs_dir, **optional):
     all_sm_queues = {}
     for sm_name_class in all_sm_names_classes:
         sm_name = sm_name_class["sm_name"]
@@ -215,45 +208,4 @@ def launch_sm_processes(sm_name, sm, all_sm_queues, config, certs_dir, **optiona
     sm_process = Process(target = xqtive.xqtive_state_machine, args = [sm_cfg])
     sm_process.start()
     launched_processes.append(sm_process)
-    return launched_processes
-
-def create_state_machine_and_queues(sm_name, sm_class, config):
-    # Create state machine object
-    sm = sm_class(config)
-
-    # Create managed PriorityQueue for states
-    states_queue = xqtive.XQtiveQueue(sm.priority_values, sm.hi_priority_states)
-
-    # Create managed queue for sending messages to process that writes to IoT
-    xqtive.XQtiveSyncMgr.register("Queue", Queue)
-    iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
-    iot_rw_queue_mgr.start()
-    iot_rw_queue = iot_rw_queue_mgr.Queue()
-
-    returned = {"sm": sm, "states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
-    return returned
-
-def launch_state_machine_processes(sm_name, all_sm_and_queues, config, certs_dir, **optional):
-    launched_processes = []
-
-    # Launch IoT process which receives messages to publish to IoT
-    iot_rw_cfg = {
-        "sm_name": sm_name,
-        "certs_dir": certs_dir,
-        "all_sm_and_queues": all_sm_and_queues,
-        "config": config,
-        "dependents": optional.get("dependents", [])}
-    iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
-    iot_rw_process.start()
-    launched_processes.append(iot_rw_process)
-
-    # Launch sm process
-    sm_cfg = {
-        "sm_name": sm_name,
-        "config": config,
-        "all_sm_and_queues": all_sm_and_queues}
-    sm_process = Process(target = xqtive.xqtive_state_machine, args = [sm_cfg])
-    sm_process.start()
-    launched_processes.append(sm_process)
-
     return launched_processes
