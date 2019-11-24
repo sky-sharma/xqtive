@@ -3,7 +3,9 @@
   "states":
   {
     "normal_priority": 999999,
-    "sleep_time": 1
+    "sleep_time": 1,
+    "hi_priority_states": ["SHUTDOWN"],
+    "cust_hi_priority_states": ["PWR_SPLY_OFF","E_STOP"]
   },
   "iot":
 	{
