@@ -3,9 +3,9 @@ import time
 from xqtive import XQtiveStateMachine
 
 class ExampleController(XQtiveStateMachine):
-    def __init__(self, config, all_sm_queues):
+    def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = config["states"].get("cust_hi_priority_states")
-        XQtiveStateMachine.__init__(self, config, all_sm_queues)
+        XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
 
     def MESSAGE(self):
         print(f"Message {self.__dict__}")
@@ -49,9 +49,9 @@ class ExampleController(XQtiveStateMachine):
             return (random.random() * 100)
 
 class ExampleResource(XQtiveStateMachine):
-    def __init__(self, config, all_sm_queues):
+    def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = []
-        XQtiveStateMachine.__init__(self, config, all_sm_queues)
+        XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
 
     def EXEC_CMD(self, params):
         print(f"Params {params}")

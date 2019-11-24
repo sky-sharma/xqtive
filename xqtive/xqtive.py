@@ -20,10 +20,11 @@ class XQtiveStateMachine(object):
     not named in all caps are private (can only be called by other states)
     """
 
-    def __init__(self, config, all_sm_queues):
+    def __init__(self, sm_name, config, all_sm_queues):
         """
         Defines private data that all states share
         """
+        self.sm_name = sm_name
         self.feedback_msg = None
         self.poll_lo_thresh = None
         self.poll_hi_thresh = None
@@ -155,6 +156,7 @@ class XQtiveStateMachine(object):
                 return next_states_params
 
     def SHUTDOWN(self):
+        print(self.all_sm_queues)
         return "SHUTDOWN"
 
 
