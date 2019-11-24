@@ -82,13 +82,17 @@ def iot_rw(obj):
     iot_rw_queue = obj.get("iot_rw_queue")
     global config
     config = obj.get("config")
+    dependents = obj.get("dependents")
     process_name = f"{unique_name}_iot_rw"
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
         iot_broker = config["iot"]["broker_address"]
         iot_port = config["iot"]["broker_port"]
-        subscribe_topic = config["iot"]["subscribe_topic"]
+        subscribe_topic = f"{config['iot']['subscribe_topic_prefix']}/{unique_name}"
+        dependent_topics = []
+        for dependent in dependents:
+            dependent_topics.append(f"{config['iot']['subscribe_topic_prefix']}/{dependent}")
         publish_topic = config["iot"]["publish_topic"]
         iot_ca_cert_path = f"{certs_dir}/{config['iot']['ca_cert']}"
         iot_client_cert_path = f"{certs_dir}/{config['iot']['client_cert']}"
@@ -116,6 +120,11 @@ def iot_rw(obj):
             else:
                 dequeued = iot_rw_queue.get()
                 if dequeued == "SHUTDOWN":
+                    # Send SHUTDOWN to topics of dependents, then exit
+                    msg_dict = {"type": "run_state", "value": "SHUTDOWN"}
+                    msg_str = json.dumps(msg_dict)
+                    for dependent_topic in dependent_topics:
+                        iot_comm.publish(dependent_topic, msg_str, QoS=1)
                     break
                 else:
                     type = dequeued["type"]
@@ -134,7 +143,7 @@ def create_logger(logger_name, config):
     logger = logging.getLogger(logger_name)
     return logger
 
-def launch_state_machine(unique_name, state_machine_class, config, certs_dir):
+def launch_state_machine(unique_name, state_machine_class, config, certs_dir, **optional):
     # Create state machine object
     state_machine = state_machine_class(config)
     launched_processes = []
@@ -154,7 +163,8 @@ def launch_state_machine(unique_name, state_machine_class, config, certs_dir):
         "certs_dir": certs_dir,
         "states_queue": states_queue,
         "iot_rw_queue": iot_rw_queue,
-        "config": config}
+        "config": config,
+        "dependents": optional.get("dependents", [])}
     iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
     iot_rw_process.start()
     launched_processes.append(iot_rw_process)
