@@ -20,7 +20,7 @@ class XQtiveStateMachine(object):
     not named in all caps are private (can only be called by other states)
     """
 
-    def __init__(self, config):
+    def __init__(self, config, all_sm_queues):
         """
         Defines private data that all states share
         """
@@ -29,7 +29,8 @@ class XQtiveStateMachine(object):
         self.poll_hi_thresh = None
         self.poll_match = None
         self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
-        self.hi_priority_states = ["SHUTDOWN"]
+        self.hi_priority_states = config["states"].get("hi_priority_states")
+        self.all_sm_queues = all_sm_queues
         try:
             # See if there are any custom hi_priority states
             if self.cust_hi_priority_states == None:
@@ -165,7 +166,7 @@ class XQtiveQueue():
     to break any ties between multiple items with the same priority. This is because we DON'T
     want comparisons between the actual items in case the priorities are the same.
     """
-    def __init__(self, priority_values, hi_priority_states):
+    def __init__(self, config):
         """
         Create managed Priority queue shared between processes
         """
@@ -175,10 +176,10 @@ class XQtiveQueue():
 
         self.queue = states_queue_mgr.PriorityQueue()
         self.put_count = 0
-        self.priority_values = priority_values
+        self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
 
         # All predefined priorities are ABOVE normal.
-        self.hi_priority_states = hi_priority_states
+        self.hi_priority_states = config["states"].get("hi_priority_states")
 
     def put(self, state_and_params, priority_qual):
         """
@@ -241,11 +242,12 @@ class XQtiveQueue():
 
 def xqtive_state_machine(obj):
     sm_name = obj.get("sm_name")
-    all_sm_and_queues = obj.get("all_sm_and_queues")
-    this_sm_and_queues = all_sm_and_queues[sm_name]
-    sm = this_sm_and_queues["sm"]
-    states_queue = this_sm_and_queues["states_queue"]
-    iot_rw_queue = this_sm_and_queues["iot_rw_queue"]
+    sm = obj.get("sm")
+    all_sm_queues = obj.get("all_sm_queues")
+    this_sm_queues = all_sm_queues[sm_name]
+    #sm = this_sm_and_queues["sm"]
+    states_queue = this_sm_queues["states_queue"]
+    iot_rw_queue = this_sm_queues["iot_rw_queue"]
     config = obj.get("config")
     process_name = f"{sm_name}_xqtive_sm"
     xqtive_sm_logger = xqtive_helpers.create_logger(process_name, config)
