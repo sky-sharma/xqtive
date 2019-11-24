@@ -12,7 +12,7 @@ class XQtiveSyncMgr(SyncManager):
     pass
 
 
-class XQtiveStates(object):
+class XQtiveStateMachine(object):
     """
     This class defines a generic state machine. Each method is a state.
     Child classes can be created which extend or override these states.
@@ -53,6 +53,9 @@ class XQtiveStates(object):
             self.sleep_time = states_cfg.get("sleep_time", default_sleep_time)
         else:
             self.sleep_time = default_sleep_time
+
+    def _set_other_sm_queues(self, other_sm_queues):
+        self.other_sm_queues = other_sm_queues
 
     def SLEEP(self, params):
         """
@@ -236,12 +239,13 @@ class XQtiveQueue():
         return gotten_item_data
 
 
-def xqtive_state_machine(object):
-    sm = object.get("state_machine")
-    states_queue = object.get("states_queue")
-    iot_rw_queue = object.get("iot_rw_queue")
-    config = object.get("config")
-    process_name = "xqtive_state_machine"
+def xqtive_state_machine(obj):
+    unique_name = obj.get("unique_name")
+    sm = obj.get("state_machine")
+    states_queue = obj.get("states_queue")
+    iot_rw_queue = obj.get("iot_rw_queue")
+    config = obj.get("config")
+    process_name = f"{unique_name}_xqtive_state_machine"
     xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
     iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
