@@ -277,7 +277,8 @@ def xqtive_state_machine(obj):
     process_name = f"{sm_name}_xqtive_sm"
     xqtive_sm_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
-    iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
+    if iot_rw_queue != None:
+        iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
     while True:
         try:
             # Get dict containing both the state to execute and parameters needed by that state.
@@ -288,7 +289,7 @@ def xqtive_state_machine(obj):
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
-            if state_to_exec not in ["_WaitUntil"]:
+            if state_to_exec not in ["_WaitUntil"] and iot_rw_queue != None:
                 iot_rw_queue.put({"type": "state_to_run", "value": state_and_params})
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
@@ -297,13 +298,15 @@ def xqtive_state_machine(obj):
 
             # If a state placed a feedback message to publish, then publish it and clear out the message
             if sm.feedback_msg != None:
-                iot_rw_queue.put({"type": "state_feedback", "value": sm.feedback_msg})
+                if iot_rw_queue != None:
+                    iot_rw_queue.put({"type": "state_feedback", "value": sm.feedback_msg})
                 sm.feedback_msg = None
 
             if returned != None:
                 if returned == "SHUTDOWN":
                     # If SHUTDOWN received then SHUTDOWN state was the last to run
-                    iot_rw_queue.put("SHUTDOWN")
+                    if iot_rw_queue != None:
+                        iot_rw_queue.put("SHUTDOWN")
                     break
                 elif type(returned).__name__ == "list":
                     if type(returned[0]).__name__ == "list":
