@@ -74,8 +74,10 @@ def iot_rw(obj):
     sm_name = obj.get("sm_name")
     certs_dir = obj.get("certs_dir")
     global states_queue
-    states_queue = obj.get("states_queue")
-    iot_rw_queue = obj.get("iot_rw_queue")
+    all_sm_and_queues = obj.get("all_sm_and_queues")
+    this_sm_and_queues = all_sm_and_queues[sm_name]
+    states_queue = this_sm_and_queues["states_queue"]
+    iot_rw_queue = this_sm_and_queues["iot_rw_queue"]
     global config
     config = obj.get("config")
     dependents = obj.get("dependents")
@@ -175,8 +177,6 @@ def launch_state_machine_processes(sm_name, all_sm_and_queues, config, certs_dir
     iot_rw_cfg = {
         "sm_name": sm_name,
         "certs_dir": certs_dir,
-        "states_queue": all_sm_and_queues[sm_name]["states_queue"],
-        "iot_rw_queue": all_sm_and_queues[sm_name]["iot_rw_queue"],
         "all_sm_and_queues": all_sm_and_queues,
         "config": config,
         "dependents": optional.get("dependents", [])}
@@ -187,10 +187,7 @@ def launch_state_machine_processes(sm_name, all_sm_and_queues, config, certs_dir
     # Launch sm process
     sm_cfg = {
         "sm_name": sm_name,
-        "sm": all_sm_and_queues[sm_name]["sm"],
         "config": config,
-        "states_queue": all_sm_and_queues[sm_name]["states_queue"],
-        "iot_rw_queue": all_sm_and_queues[sm_name]["iot_rw_queue"],
         "all_sm_and_queues": all_sm_and_queues}
     sm_process = Process(target = xqtive.xqtive_state_machine, args = [sm_cfg])
     sm_process.start()
