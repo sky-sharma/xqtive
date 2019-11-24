@@ -78,7 +78,7 @@ def iot_onmsg(msg):
         iot_rw_logger.error(f"ERROR; iot_onmsg; {e}")
 
 def iot_rw(obj):
-    unique_name = obj.get("unique_name")
+    state_machine_name = obj.get("state_machine_name")
     certs_dir = obj.get("certs_dir")
     global states_queue
     states_queue = obj.get("states_queue")
@@ -86,14 +86,14 @@ def iot_rw(obj):
     global config
     config = obj.get("config")
     dependents = obj.get("dependents")
-    process_name = f"{unique_name}_iot_rw"
+    process_name = f"{state_machine_name}_iot_rw"
     global iot_rw_logger
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
         iot_broker = config["iot"]["broker_address"]
         iot_port = config["iot"]["broker_port"]
-        subscribe_topic = f"{config['iot']['subscribe_topic_prefix']}/{unique_name}"
+        subscribe_topic = f"{config['iot']['subscribe_topic_prefix']}/{state_machine_name}"
         dependent_topics = []
         for dependent in dependents:
             dependent_topics.append(f"{config['iot']['subscribe_topic_prefix']}/{dependent}")
@@ -110,7 +110,7 @@ def iot_rw(obj):
             if not iot_connected:
                 try:
                     # A connection to iot is established at the beginning and if publish fails
-                    iot_comm = AWSIoTMQTTClient(f"{unique_name}_xqtive")
+                    iot_comm = AWSIoTMQTTClient(f"{state_machine_name}_xqtive")
                     iot_comm.onMessage = iot_onmsg
                     iot_comm.configureEndpoint(iot_broker, iot_port)
                     iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
@@ -147,10 +147,9 @@ def create_logger(logger_name, config):
     logger = logging.getLogger(logger_name)
     return logger
 
-def launch_state_machine(unique_name, state_machine_class, config, certs_dir, **optional):
+def create_state_machine_and_queues(state_machine_name, state_machine_class, config):
     # Create state machine object
     state_machine = state_machine_class(config)
-    launched_processes = []
 
     # Create managed PriorityQueue for states
     states_queue = xqtive.XQtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
@@ -161,12 +160,31 @@ def launch_state_machine(unique_name, state_machine_class, config, certs_dir, **
     iot_rw_queue_mgr.start()
     iot_rw_queue = iot_rw_queue_mgr.Queue()
 
+    returned = {"state_machine": state_machine, "states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
+    return returned
+
+def launch_state_machine(state_machine_name, all_state_machines_queues, config, certs_dir, **optional):
+    """
+    # Create state machine object
+    state_machine = state_machine_class(config)
+    """
+    launched_processes = []
+    """
+    # Create managed PriorityQueue for states
+    states_queue = xqtive.XQtiveQueue(state_machine.priority_values, state_machine.hi_priority_states)
+
+    # Create managed queue for sending messages to process that writes to IoT
+    xqtive.XQtiveSyncMgr.register("Queue", Queue)
+    iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
+    iot_rw_queue_mgr.start()
+    iot_rw_queue = iot_rw_queue_mgr.Queue()
+    """
     # Launch IoT process which receives messages to publish to IoT
     iot_rw_cfg = {
-        "unique_name": unique_name,
+        "state_machine_name": state_machine_name,
         "certs_dir": certs_dir,
-        "states_queue": states_queue,
-        "iot_rw_queue": iot_rw_queue,
+        "states_queue": all_state_machines_queues[state_machine_name]["states_queue"],
+        "iot_rw_queue": all_state_machines_queues[state_machine_name]["iot_rw_queue"],
         "config": config,
         "dependents": optional.get("dependents", [])}
     iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
@@ -175,15 +193,16 @@ def launch_state_machine(unique_name, state_machine_class, config, certs_dir, **
 
     # Launch state_machine process
     state_machine_cfg = {
-        "unique_name": unique_name,
-        "state_machine": state_machine,
+        "state_machine_name": state_machine_name,
+        "state_machine": all_state_machines_queues[state_machine_name]["state_machine"],
         "config": config,
-        "states_queue": states_queue,
-        "iot_rw_queue": iot_rw_queue}
+        "states_queue": all_state_machines_queues[state_machine_name]["states_queue"],
+        "iot_rw_queue": all_state_machines_queues[state_machine_name]["iot_rw_queue"]}
     state_machine_process = Process(target = xqtive.xqtive_state_machine, args = [state_machine_cfg])
     state_machine_process.start()
     launched_processes.append(state_machine_process)
 
+    """
     processes_and_queues = {
         "state_machine": state_machine,
         "processes": launched_processes,
@@ -191,3 +210,5 @@ def launch_state_machine(unique_name, state_machine_class, config, certs_dir, **
         "iot_rw_queue": iot_rw_queue}
 
     return processes_and_queues
+    """
+    return launched_processes
