@@ -1,11 +1,11 @@
 import random
 import time
-from xqtive import XQtiveStates
+from xqtive import XQtiveStateMachine
 
-class XQtiveExampleStateMachine(XQtiveStates):
+class ExampleController(XQtiveStateMachine):
     def __init__(self, config):
         self.cust_hi_priority_states = ["PWR_SPLY_OFF","E_STOP"]
-        XQtiveStates.__init__(self, config)
+        XQtiveStateMachine.__init__(self, config)
 
     def MESSAGE(self):
         print(f"Message {self.__dict__}")
@@ -47,3 +47,11 @@ class XQtiveExampleStateMachine(XQtiveStates):
             return (time.time() % 60)    # Seconds now
         else:
             return (random.random() * 100)
+
+class ExampleResource(XQtiveStateMachine):
+    def __init__(self, config):
+        self.cust_hi_priority_states = []
+        XQtiveStateMachine.__init__(self, config)
+
+    def EXEC_CMD(self, params):
+        print(f"Params {params}")
