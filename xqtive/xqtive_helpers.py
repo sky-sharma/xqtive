@@ -75,13 +75,14 @@ def iot_onmsg(msg):
         states_queue.put(state_and_params, "from_iot")
 
 def iot_rw(obj):
+    unique_name = obj.get("unique_name")
     certs_dir = obj.get("certs_dir")
     global states_queue
     states_queue = obj.get("states_queue")
     iot_rw_queue = obj.get("iot_rw_queue")
     global config
     config = obj.get("config")
-    process_name = "iot_rw"
+    process_name = f"{unique_name}_iot_rw"
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
@@ -101,7 +102,7 @@ def iot_rw(obj):
             if not iot_connected:
                 try:
                     # A connection to iot is established at the beginning and if publish fails
-                    iot_comm = AWSIoTMQTTClient("xqtive")
+                    iot_comm = AWSIoTMQTTClient(f"{unique_name}_xqtive")
                     iot_comm.onMessage = iot_onmsg
                     iot_comm.configureEndpoint(iot_broker, iot_port)
                     iot_comm.configureCredentials(iot_ca_cert_path, iot_client_key_path, iot_client_cert_path)
@@ -133,7 +134,7 @@ def create_logger(logger_name, config):
     logger = logging.getLogger(logger_name)
     return logger
 
-def launch_state_machine(state_machine_class, config, certs_dir):
+def launch_state_machine(unique_name, state_machine_class, config, certs_dir):
     # Create state machine object
     state_machine = state_machine_class(config)
     launched_processes = []
@@ -149,6 +150,7 @@ def launch_state_machine(state_machine_class, config, certs_dir):
 
     # Launch IoT process which receives messages to publish to IoT
     iot_rw_cfg = {
+        "unique_name": unique_name,
         "certs_dir": certs_dir,
         "states_queue": states_queue,
         "iot_rw_queue": iot_rw_queue,
@@ -159,6 +161,7 @@ def launch_state_machine(state_machine_class, config, certs_dir):
 
     # Launch state_machine process
     state_machine_cfg = {
+        "unique_name": unique_name,
         "state_machine": state_machine,
         "config": config,
         "states_queue": states_queue,
@@ -168,6 +171,7 @@ def launch_state_machine(state_machine_class, config, certs_dir):
     launched_processes.append(state_machine_process)
 
     processes_and_queues = {
+        "state_machine": state_machine,
         "processes": launched_processes,
         "states_queue": states_queue,
         "iot_rw_queue": iot_rw_queue}
