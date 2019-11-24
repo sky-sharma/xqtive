@@ -4,7 +4,7 @@ import time
 import logging
 import xqtive
 from queue import Queue
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
@@ -12,8 +12,6 @@ def read_config(config_filepath):
     """
     Read config JSON file and return as managed dict
     """
-    config_mgr = Manager()
-    config = config_mgr.dict()
     with open(config_filepath) as cfgFile:
         config = json.load(cfgFile)
     return(config)
