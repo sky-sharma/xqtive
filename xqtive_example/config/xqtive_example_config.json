@@ -12,7 +12,7 @@
 		"ca_cert": "AmazonCAAllFour.pem",
 		"client_cert": "0578125d52-certificate.pem.crt",
 		"client_key": "0578125d52-private.pem.key",
-		"subscribe_topic": "xqtive",
+		"subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
 	}
