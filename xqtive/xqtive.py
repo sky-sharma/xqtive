@@ -180,6 +180,21 @@ class XQtiveQueue():
 
         # All predefined priorities are ABOVE normal.
         self.hi_priority_states = config["states"].get("hi_priority_states")
+        self.cust_hi_priority_states = config["states"].get("cust_hi_priority_states")
+        try:
+            # See if there are any custom hi_priority states
+            if self.cust_hi_priority_states == None:
+                self.cust_hi_priority_states = {}
+        except:
+            self.cust_hi_priority_states = {}
+
+        # Make sure all priority entries are upper case
+        #cust_hi_priorities.update((key, val.upper()) for key, val in cust_hi_priorities.items())
+
+        # Merge existing hi_priority_states with custom ones
+        hi_priority_states = set(self.hi_priority_states)
+        cust_hi_priority_states = set(self.cust_hi_priority_states)
+        self.hi_priority_states = list(hi_priority_states | cust_hi_priority_states)
 
     def put(self, state_and_params, priority_qual):
         """
