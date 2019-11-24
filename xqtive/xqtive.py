@@ -240,12 +240,12 @@ class XQtiveQueue():
 
 
 def xqtive_state_machine(obj):
-    unique_name = obj.get("unique_name")
+    state_machine_name = obj.get("state_machine_name")
     sm = obj.get("state_machine")
     states_queue = obj.get("states_queue")
     iot_rw_queue = obj.get("iot_rw_queue")
     config = obj.get("config")
-    process_name = f"{unique_name}_xqtive_state_machine"
+    process_name = f"{state_machine_name}_xqtive_state_machine"
     xqtive_state_machine_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
     iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
