@@ -24,7 +24,14 @@ config["sequences_dir"] = sequences_dir
 
 # Import State Machine Class and create State Machines.
 from xqtive_example_state_machines import ExampleController, ExampleResource
+all_sm_names_classes = [
+    {"state_machine_name": "controller", "state_machine_class": ExampleController},
+    {"state_machine_name": "resource", "state_machine_class": ExampleResource}]
 
+all_sm_queues_processes = xqtive_helpers.launch_state_machines(all_sm_names_classes, config, certs_dir, dependents=["resource"])
+state_machine_processes = all_sm_queues_processes["all_sm_processes"]
+
+"""
 # Create controller state_machine and queues
 ctrl_sm_queues_returned = xqtive_helpers.create_state_machine_and_queues("controller", ExampleController, config)
 
@@ -34,12 +41,12 @@ rsrc_sm_queues_returned = xqtive_helpers.create_state_machine_and_queues("resour
 all_state_machines_queues = {"controller": ctrl_sm_queues_returned, "resource": rsrc_sm_queues_returned}
 
 # Launch Controller State Machine
-controller_processes = xqtive_helpers.launch_state_machine("controller", all_state_machines_queues, config, certs_dir, dependents=["resource"])
+controller_processes = xqtive_helpers.launch_state_machine_processes("controller", all_state_machines_queues, config, certs_dir, dependents=["resource"])
 #controller_processes = ctrl_launcher_returned["processes"]
 #controller_queue = ctrl_launcher_returned["states_queue"]
 
 # Launch resource state machine
-resource_processes = xqtive_helpers.launch_state_machine("resource", all_state_machines_queues, config, certs_dir)
+resource_processes = xqtive_helpers.launch_state_machine_processes("resource", all_state_machines_queues, config, certs_dir)
 #resource_processes = resource_launcher_returned["processes"]
 #resource_queue = resource_launcher_returned["states_queue"]
 
@@ -48,7 +55,7 @@ state_machine_processes = controller_processes + resource_processes
 # Put all_state_queues in shared place
 #all_state_queues = {"controller": controller_queue, "resource": resource_queue}
 #config["all_state_queues"] = all_state_queues
-
+"""
 #state_machine_processes = controller_processes
 # Wait till all processes have exited before killing main process
 for state_machine_process in state_machine_processes:
