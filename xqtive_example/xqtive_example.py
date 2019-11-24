@@ -26,7 +26,7 @@ config["sequences_dir"] = sequences_dir
 from xqtive_example_state_machines import ExampleController, ExampleResource
 
 # Launch Controller State Machine
-ctrl_launcher_returned = xqtive_helpers.launch_state_machine("controller", ExampleController, config, certs_dir)
+ctrl_launcher_returned = xqtive_helpers.launch_state_machine("controller", ExampleController, config, certs_dir, dependents=["resource"])
 controller_processes = ctrl_launcher_returned["processes"]
 controller_sm = ctrl_launcher_returned["state_machine"]
 controller_queue = ctrl_launcher_returned["states_queue"]
