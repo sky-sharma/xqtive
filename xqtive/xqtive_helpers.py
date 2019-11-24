@@ -168,15 +168,16 @@ def create_state_machine_and_queues(sm_name, sm_class, config):
     returned = {"sm": sm, "states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
     return returned
 
-def launch_state_machine_processes(sm_name, all_sms_queues, config, certs_dir, **optional):
+def launch_state_machine_processes(sm_name, all_sm_and_queues, config, certs_dir, **optional):
     launched_processes = []
 
     # Launch IoT process which receives messages to publish to IoT
     iot_rw_cfg = {
         "sm_name": sm_name,
         "certs_dir": certs_dir,
-        "states_queue": all_sms_queues[sm_name]["states_queue"],
-        "iot_rw_queue": all_sms_queues[sm_name]["iot_rw_queue"],
+        "states_queue": all_sm_and_queues[sm_name]["states_queue"],
+        "iot_rw_queue": all_sm_and_queues[sm_name]["iot_rw_queue"],
+        "all_sm_and_queues": all_sm_and_queues,
         "config": config,
         "dependents": optional.get("dependents", [])}
     iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
@@ -186,10 +187,11 @@ def launch_state_machine_processes(sm_name, all_sms_queues, config, certs_dir, *
     # Launch sm process
     sm_cfg = {
         "sm_name": sm_name,
-        "sm": all_sms_queues[sm_name]["sm"],
+        "sm": all_sm_and_queues[sm_name]["sm"],
         "config": config,
-        "states_queue": all_sms_queues[sm_name]["states_queue"],
-        "iot_rw_queue": all_sms_queues[sm_name]["iot_rw_queue"]}
+        "states_queue": all_sm_and_queues[sm_name]["states_queue"],
+        "iot_rw_queue": all_sm_and_queues[sm_name]["iot_rw_queue"],
+        "all_sm_and_queues": all_sm_and_queues}
     sm_process = Process(target = xqtive.xqtive_state_machine, args = [sm_cfg])
     sm_process.start()
     launched_processes.append(sm_process)
