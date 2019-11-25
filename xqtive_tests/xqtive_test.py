@@ -10,23 +10,14 @@ sys.path.append(base_dir)
 sys.path.append(xqtive_dir)
 sys.path.append(xqtive_example_dir)
 
-from xqtive import XQtiveStates
+from xqtive import XQtiveStateMachine
 
 def _create_state_machine():
-    config = {"states":{"wait_resolution": 0.1}}
-    class TestStateMachine(XQtiveStates):
-        def __init__(self, config):
-            self.cust_hi_priority_states = ["PWR_SPLY_OFF", "E_STOP"]
-            XQtiveStates.__init__(self, config)
-    return TestStateMachine(config)
-
-def test_create_custom_states():
-    """
-    Test that hi_priority_states from customer specified test machine classes
-    are merged with existing hi_priority_states.
-    """
-    sm = _create_state_machine()
-    return set(sm.hi_priority_states)
+    config = {"states": {"normal_priority": 999999, "hi_priority_states": ["PWR_SPLY_OFF", "E_STOP"]}}
+    class TestStateMachine(XQtiveStateMachine):
+        def __init__(self, sm_name, config, all_sm_queues):
+            XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
+    return TestStateMachine("", config, {})
 
 def test_POLL_1():
     """
@@ -94,7 +85,6 @@ def test_POLL_4():
     returned["poll_hi_thresh"] = sm.__dict__["poll_hi_thresh"]
     return returned
 
-assert test_create_custom_states() == set(["SHUTDOWN", "PWR_SPLY_OFF", "E_STOP"])
 assert test_POLL_1() == {"poll_var": "AI0", "poll_comparison": "ABOVE", "poll_match": None, "poll_lo_thresh": 17.0, "poll_hi_thresh": None}
 assert test_POLL_2() == {"poll_var": "DWORD_1", "poll_comparison": "BETWEEN", "poll_match": None, "poll_lo_thresh": 3, "poll_hi_thresh": 15}
 assert test_POLL_3() == {"poll_var": "AI1", "poll_comparison": "BETWEEN", "poll_match": None, "poll_lo_thresh": 5.7, "poll_hi_thresh": 19.4}
