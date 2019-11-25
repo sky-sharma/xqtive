@@ -96,33 +96,33 @@ class XQtiveStateMachine(object):
         Format example 2: POLL;30;INT;DIG_WORD;BETWEEN;4;739
         """
         self.poll_deadline = time.time() + float(params[0])    # seconds
-        type = params[1].upper()    # INT, FLOAT, BOOL, STR
+        param_type = params[1].upper()    # INT, FLOAT, BOOL, STR
         self.poll_var = params[2]
         self.poll_comparison = params[3].upper()    # MATCH, ABOVE, BELOW, BETWEEN
         if self.poll_comparison == "MATCH":
-            if type == "INT":
+            if param_type == "INT":
                 self.poll_match = int(params[4])
-            elif type == "FLOAT":
+            elif param_type == "FLOAT":
                 self.poll_match = float(params[4])
-            elif type == "BOOL":
+            elif param_type == "BOOL":
                 self.poll_match = bool(params[4])
-            elif type == "STR":
+            elif param_type == "STR":
                 self.poll_match = params[4]
         elif self.poll_comparison == "ABOVE":
-            if type == "INT":
+            if param_type == "INT":
                 self.poll_lo_thresh = int(params[4])
-            elif type == "FLOAT":
+            elif param_type == "FLOAT":
                 self.poll_lo_thresh = float(params[4])
         elif self.poll_comparison == "BELOW":
-            if type == "INT":
+            if param_type == "INT":
                 self.poll_hi_thresh = int(params[4])
-            elif type == "FLOAT":
+            elif param_type == "FLOAT":
                 self.poll_hi_thresh = float(params[4])
         elif self.poll_comparison == "BETWEEN":
-            if type == "INT":
+            if param_type == "INT":
                 self.poll_hi_thresh = max(int(params[4]), int(params[5]))
                 self.poll_lo_thresh = min(int(params[4]), int(params[5]))
-            elif type == "FLOAT":
+            elif param_type == "FLOAT":
                 self.poll_hi_thresh = max(float(params[4]), float(params[5]))
                 self.poll_lo_thresh = min(float(params[4]), float(params[5]))
         next_states_params = [["_PollUntil"]]    # Send as list of lists
@@ -278,7 +278,7 @@ def xqtive_state_machine(obj):
     xqtive_sm_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
     if iot_rw_queue != None:
-        iot_rw_queue.put({"type": "sequence_names", "value": sequence_names})
+        iot_rw_queue.put({"sender": sm_name,"msg_type": "sequence_names", "value": sequence_names})
     while True:
         try:
             # Get dict containing both the state to execute and parameters needed by that state.
@@ -290,7 +290,7 @@ def xqtive_state_machine(obj):
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
             if state_to_exec not in ["_WaitUntil"] and iot_rw_queue != None:
-                iot_rw_queue.put({"type": "state_to_run", "value": state_and_params})
+                iot_rw_queue.put({"sender": sm_name, "msg_type": "state_to_run", "value": state_and_params})
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
             else:
@@ -299,7 +299,7 @@ def xqtive_state_machine(obj):
             # If a state placed a feedback message to publish, then publish it and clear out the message
             if sm.feedback_msg != None:
                 if iot_rw_queue != None:
-                    iot_rw_queue.put({"type": "state_feedback", "value": sm.feedback_msg})
+                    iot_rw_queue.put({"sender": sm_name, "msg_type": "state_feedback", "value": sm.feedback_msg})
                 sm.feedback_msg = None
 
             if returned != None:
