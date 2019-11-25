@@ -12,14 +12,20 @@ It is not desirable to write a test application in such a way that when the sequ
 # The terms "step" and "state" are used interchangeably in the rest of this document.
 
 FEATURES:
-1. Written in Python3.8.  Should work with Python3.6 onwards but only tested with Python3.8. 
-2. Leverages multiprocessing.
-3. Interfaces with AWS IoT MQTT.  Interfacing with MosQuiTTo coming soon.
-4. Allows a non-programmer to write test sequences using a text-editor and using a simple set of rules / syntax.
-5. Allows a programmer with some Python abilities to extend some key classes.
-6. Each step in the sequence file corresponds to a state in a state machine. Each of those states subsequently can be defined by sub-states and those by sub-states and so on. To enable all the states to execute in the proper order PriorityQueues are used.
-7. States can be run from a sequence file OR by incoming MQTT messages. States return MQTT messages as feedback. This allows creation of a front-end.
-8. States requested over MQTT can be NORMAL or HIGH priority.  If a HIGH PRIORITY state is received the existing queue is cleared and the HIGH priority state is executed next. 
+1. Written in Python3.8.  Should work with Python3.6 onwards but only tested with Python3.8.
+2. Written for Linux. Tested on Debian.
+3. Leverages multiprocessing.
+4. Interfaces with AWS IoT MQTT.  Interfacing with MosQuiTTo coming soon.
+5. Allows a non-programmer to write test sequences using a text-editor and using a simple set of rules / syntax.
+6. Allows a programmer with some Python abilities to extend some key classes.
+7. Each step in the sequence file corresponds to a state in a state machine. Each of those states subsequently can be defined by sub-states and those by sub-states and so on. To enable all the states to execute in the proper order PriorityQueues are used.
+8. States can be run from a sequence file OR by incoming MQTT messages. States return MQTT messages as feedback. This allows creation of a front-end.
+9. States requested over MQTT can be NORMAL or HIGH priority.  If a HIGH PRIORITY state is received the existing queue is cleared and the HIGH priority state is executed next. 
+10. Core functionality is provided by XQtiveStateMachine class.
+11. At any given time an application built with XQtive runs two or more processes:
+- Main Queued State Machine (uses XQtiveStateMachine and extensions). This is the one whose states are called out in a sequence / recipe file or in MQTT messages.
+- Main IoT / MQTT process which interfaces to broker (currently AWS IoT but MosQuiTTo also planned for the future).
+- Optional Queued State Machines (also use XQtiveStateMachine and extensions) launched using "multiprocessing". Talk to other Queued State Machines (including main one) using the Priority Queue of the state machine in question.
 
 EXAMPLE SEQUENCE FILE:
 
@@ -54,3 +60,4 @@ The core of XQTive is the XQtiveStateMachine class. Included among the methods o
 FEATURES IN THE WORKS:
 1. A Django-based example front-end.
 2. Allowing extensions for Test results; i.e Pass / Fail per step and for entire sequence.
+3. Allowing for sub-sequences to be defined as text-files. Currently sub-sequences are defined in the methods of the XQtiveStateMachine class and extensions.
