@@ -108,16 +108,22 @@ class XQtiveStateMachine(object):
                 self.poll_match = bool(params[4])
             elif param_type == "STR":
                 self.poll_match = params[4]
+            else:
+                print(f"Unsupported param_type for '{self.poll_comparison}' comparison: {param_type}")
         elif self.poll_comparison == "ABOVE":
             if param_type == "INT":
                 self.poll_lo_thresh = int(params[4])
             elif param_type == "FLOAT":
                 self.poll_lo_thresh = float(params[4])
+            else:
+                print(f"Unsupported param_type for '{self.poll_comparison}' comparison: {param_type}")
         elif self.poll_comparison == "BELOW":
             if param_type == "INT":
                 self.poll_hi_thresh = int(params[4])
             elif param_type == "FLOAT":
                 self.poll_hi_thresh = float(params[4])
+            else:
+                print(f"Unsupported param_type for '{self.poll_comparison}' comparison: {param_type}")
         elif self.poll_comparison == "BETWEEN":
             if param_type == "INT":
                 self.poll_hi_thresh = max(int(params[4]), int(params[5]))
@@ -125,6 +131,10 @@ class XQtiveStateMachine(object):
             elif param_type == "FLOAT":
                 self.poll_hi_thresh = max(float(params[4]), float(params[5]))
                 self.poll_lo_thresh = min(float(params[4]), float(params[5]))
+            else:
+                print(f"Unsupported param_type for '{self.poll_comparison}' comparison: {param_type}")
+        else:
+            print(f"Unsupported comparison: {self.poll_comparison}")
         next_states_params = [["_PollUntil"]]    # Send as list of lists
         return next_states_params
 
@@ -142,12 +152,16 @@ class XQtiveStateMachine(object):
         else:
             # Check if polled var has satisfied criterion
             self.poll_value = self._ReadPollVar(self.poll_var)
-            if self.poll_comparison == "ABOVE":
-                criterion_satisfied = self.poll_value > self.poll_lo_thresh
-            elif self.poll_comparison == "BELOW":
-                criterion_satisfied = self.poll_value < self.poll_hi_thresh
-            elif self.poll_comparison == "BETWEEN":
-                criterion_satisfied = self.poll_lo_thresh <= self.poll_value <= self.poll_hi_thresh
+            if self.poll_value != None:
+                if self.poll_comparison == "ABOVE":
+                    criterion_satisfied = self.poll_value > self.poll_lo_thresh
+                elif self.poll_comparison == "BELOW":
+                    criterion_satisfied = self.poll_value < self.poll_hi_thresh
+                elif self.poll_comparison == "BETWEEN":
+                    criterion_satisfied = self.poll_lo_thresh <= self.poll_value <= self.poll_hi_thresh
+            else:
+                criterion_satisfied = False
+
             if criterion_satisfied:
                 self.feedback_msg = f"Poll succeeded. '{self.poll_var}' value: {self.poll_value}; {qual_str}"
             else:
@@ -155,12 +169,15 @@ class XQtiveStateMachine(object):
                 next_states_params = [["_PollUntil"]]    # Send as list of lists
                 return next_states_params
 
+    def _ReadPollVar(poll_var):
+        pass
+
     def SHUTDOWN(self):
         # Send SHUTDOWN messages to all other State Machine queues
         self.all_sm_queues.pop(self.sm_name)
         try:
             for sm_queues in list(self.all_sm_queues.values()):
-                sm_queues["states_queue"].put(["SHUTDOWN"], "from_sm")
+                sm_queues["states_queue"].put(["SHUTDOWN"], "from_other_sm")
         except:
             # We're passing on errors here because the state_machine we are trying to stop may already have stopped
             pass
@@ -186,6 +203,7 @@ class XQtiveQueue():
         self.queue = states_queue_mgr.PriorityQueue()
         self.put_count = 0
         self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
+        self.last_state_priority = self.priority_values["NORMAL"]
 
         # All predefined priorities are ABOVE normal.
         self.hi_priority_states = config["states"].get("hi_priority_states")
@@ -216,7 +234,7 @@ class XQtiveQueue():
         sequence file could invalidate the rest of the sequence file.
         2. "from_iot": the state originated from the cloud (IoT). If it is a designated hi_priority state
         enqueue it with HIGH priority, otherwise with NORMAL priority.
-        3. "from_sm": Same as 2 above.
+        3. "from_other_sm": Same as 2 above.
         4. "sub_state": the state about to be enqueued is a sub_state of the caller state. If the
         sub_state is designated as hi_priority then enqueue it with HIGH priority, which invalidates
         all other states in the queue. Otherwise enqueue it with a higher priority than the caller state
@@ -229,12 +247,12 @@ class XQtiveQueue():
 
         if priority_qual == "from_sequence":
             priority_to_use = self.priority_values["NORMAL"]
-        elif priority_qual in ["from_iot", "from_sm"]:
+        elif priority_qual in ["from_iot", "from_other_sm"]:
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
             else:
                 priority_to_use = self.priority_values["NORMAL"]
-        elif priority_qual == "sub_state":
+        elif priority_qual in ["sub_state", "from_other_sm_sub_state"]:
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
             elif self.last_state_priority > 0:
@@ -243,7 +261,6 @@ class XQtiveQueue():
                 priority_to_use = self.last_state_priority
         elif priority_qual == "repeated_wait_poll":
             priority_to_use = self.last_state_priority
-
         self.put_count += 1
         self.queue.put((priority_to_use, self.put_count, state_and_params))
 
@@ -289,7 +306,7 @@ def xqtive_state_machine(obj):
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
-            if state_to_exec not in ["_WaitUntil"] and iot_rw_queue != None:
+            if state_to_exec not in ["_WaitUntil", "_PollUntil"] and iot_rw_queue != None:
                 iot_rw_queue.put({"sender": sm_name, "msg_type": "state_to_run", "value": state_and_params})
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
