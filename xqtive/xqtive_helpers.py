@@ -60,20 +60,21 @@ def iot_onmsg(msg):
     try:
         msg_payload = msg.payload
         dict_payload = json.loads(msg_payload)
-        type = dict_payload["type"].strip().lower()    # Remove whitespace from both ends and make lower-case
+        msg_type = dict_payload["msg_type"].strip().lower()    # Remove whitespace from both ends and make lower-case
         value = dict_payload["value"].strip()
-        if type == "run_sequence":
+        if msg_type == "run_sequence":
             states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
             for state_and_params in states_and_params:
                 states_queue.put(state_and_params, "from_sequence")
-        elif type == "run_state":
+        elif msg_type == "run_state":
             state_and_params = state_params_str_to_array(value)
             states_queue.put(state_and_params, "from_iot")
     except Exception as e:
-        iot_rw_logger.error(f"ERROR; iot_onmsg; {e}")
+        iot_rw_logger.error(f"ERROR; iot_onmsg; {sm_name}; {type(e).__name__}; {e}")
 
 
 def iot_rw(obj):
+    global sm_name
     sm_name = obj.get("sm_name")
     certs_dir = obj.get("certs_dir")
     global states_queue
@@ -119,6 +120,7 @@ def iot_rw(obj):
                     # If there was an error during connection close and wait before trying again
                     iot_comm.close()
                     time.sleep(config["iot"]["wait_between_reconn_attempts"])
+                    iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}; reconnecting...")
             else:
                 dequeued = iot_rw_queue.get()
                 if dequeued == "SHUTDOWN":
@@ -129,7 +131,7 @@ def iot_rw(obj):
                     #    iot_comm.publish(dependent_topic, msg_str, QoS=1)
                     break
                 else:
-                    type = dequeued["type"]
+                    #type = dequeued["type"]
                     msg_dict = dequeued
                     msg_str = json.dumps(msg_dict)
                     iot_comm.publish(publish_topic, msg_str, QoS=1)
