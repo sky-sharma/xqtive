@@ -1,9 +1,10 @@
 // First sequence file
- Pwr_Sply_ouTpuT ; 31 
 
-// Testing E-Stop
-pWr_sPlY_oFf
+//Set output
+PWR_SPLY_OUTPUT;31
 
+//Poll actual voltage
+POLL;20;FLOAT;VOLTS;ABOVE;34
 
-// Test comment
-    Pwr_Sply_ouTpuT     ;      987.6     
+// Power off
+PWR_SPLY_OFF
