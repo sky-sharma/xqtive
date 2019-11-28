@@ -289,13 +289,15 @@ def xqtive_state_machine(obj):
     this_sm_queues = all_sm_queues[sm_name]
     #sm = this_sm_and_queues["sm"]
     states_queue = this_sm_queues["states_queue"]
-    iot_rw_queue = this_sm_queues["iot_rw_queue"]
+    #iot_rw_queue = this_sm_queues["iot_rw_queue"]
+    iot_rw_queues = this_sm_queues["iot_rw_queues"]
     config = obj.get("config")
     process_name = f"{sm_name}_xqtive_sm"
     xqtive_sm_logger = xqtive_helpers.create_logger(process_name, config)
     sequence_names = xqtive_helpers.get_sequence_names(config)
-    if iot_rw_queue != None:
-        iot_rw_queue.put({"sender": sm_name,"msg_type": "sequence_names", "value": sequence_names})
+    if iot_rw_queues != None:
+        for iot_rw_broker, iot_rw_queue in iot_rw_queues.items():
+            iot_rw_queue.put({"sender": sm_name,"msg_type": "sequence_names", "value": sequence_names})
     while True:
         try:
             # Get dict containing both the state to execute and parameters needed by that state.
@@ -306,8 +308,9 @@ def xqtive_state_machine(obj):
             # Run the state using the parameters and decide if the state machine is to continue running or not.
             # NONE of the states return anything EXCEPT the "Shutdown" state which returns a True
             # Send info. about states being run to IoT except for some states that are called repeatedly
-            if state_to_exec not in ["_WaitUntil", "_PollUntil"] and iot_rw_queue != None:
-                iot_rw_queue.put({"sender": sm_name, "msg_type": "state_to_run", "value": state_and_params})
+            if state_to_exec not in ["_WaitUntil", "_PollUntil"] and iot_rw_queues != None:
+                for iot_rw_broker, iot_rw_queue in iot_rw_queues.items():
+                    iot_rw_queue.put({"sender": sm_name, "msg_type": "state_to_run", "value": state_and_params})
             if params == []:
                 returned = eval(f"sm.{state_to_exec}()")
             else:
@@ -315,15 +318,17 @@ def xqtive_state_machine(obj):
 
             # If a state placed a feedback message to publish, then publish it and clear out the message
             if sm.feedback_msg != None:
-                if iot_rw_queue != None:
-                    iot_rw_queue.put({"sender": sm_name, "msg_type": "state_feedback", "value": sm.feedback_msg})
+                if iot_rw_queues != None:
+                    for iot_rw_broker, iot_rw_queue in iot_rw_queues.items():
+                        iot_rw_queue.put({"sender": sm_name, "msg_type": "state_feedback", "value": sm.feedback_msg})
                 sm.feedback_msg = None
 
             if returned != None:
                 if returned == "SHUTDOWN":
                     # If SHUTDOWN received then SHUTDOWN state was the last to run
-                    if iot_rw_queue != None:
-                        iot_rw_queue.put("SHUTDOWN")
+                    if iot_rw_queues != None:
+                        for iot_rw_broker, iot_rw_queue in iot_rw_queues.items():
+                            iot_rw_queue.put("SHUTDOWN")
                     break
                 elif type(returned).__name__ == "list":
                     if type(returned[0]).__name__ == "list":
