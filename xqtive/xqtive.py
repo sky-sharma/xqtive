@@ -235,8 +235,8 @@ class XQtiveQueue():
         2. "from_iot": the state originated from the cloud (IoT). If it is a designated hi_priority state
         enqueue it with HIGH priority, otherwise with NORMAL priority.
         3. "from_other_sm": Same as 2 above.
-        4. "sub_state": the state about to be enqueued is a sub_state of the caller state. If the
-        sub_state is designated as hi_priority then enqueue it with HIGH priority, which invalidates
+        4. "substate_from_this_sm": the state about to be enqueued is a substate of the caller state. If the
+        substate is designated as hi_priority then enqueue it with HIGH priority, which invalidates
         all other states in the queue. Otherwise enqueue it with a higher priority than the caller state
         (i.e. subtract 1 from priority of caller state), unless caller is already at HIGH priority.
         5. "repeated_wait_poll": states "_WaitUntil" and "_PollUntil" are unique in that they call themselves
@@ -252,7 +252,7 @@ class XQtiveQueue():
                 priority_to_use = self.priority_values["HIGH"]
             else:
                 priority_to_use = self.priority_values["NORMAL"]
-        elif priority_qual in ["sub_state", "from_other_sm_sub_state"]:
+        elif priority_qual in ["substate_from_this_sm", "substate_from_other_sm"]:
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
             elif self.last_state_priority > 0:
@@ -339,13 +339,13 @@ def xqtive_state_machine(obj):
                     for state_and_params in next_states_params:
                         next_state_to_exec = state_and_params[0]
 
-                        # Set priority_qual "sub_state" unless next state is a repeat of this one and is a "_WaitUntil" or "_PollUntil".
+                        # Set priority_qual "substate_from_this_sm" unless next state is a repeat of this one and is a "_WaitUntil" or "_PollUntil".
                         # If the priority_qual flag is True then the next state will be enqueued at a higher priority
                         # than the last one. Else the next state is enqueued at the same priority as the last one.
                         if next_state_to_exec == state_to_exec and next_state_to_exec in ["_WaitUntil", "_PollUntil"]:
                             priority_qual = "repeated_wait_poll"
                         else:
-                            priority_qual = "sub_state"
+                            priority_qual = "substate_from_this_sm"
                         states_queue.put(state_and_params, priority_qual)
         except Exception as e:
             xqtive_sm_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")

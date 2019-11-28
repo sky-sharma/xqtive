@@ -37,7 +37,7 @@ class ExampleController(XQtiveStateMachine):
     def _SetVoltage(self, params):
         self.feedback_msg = f"Setting voltage out to {params[0]} Volts..."
         rsrc_states_queue = self.all_sm_queues["resource"]["states_queue"]
-        rsrc_states_queue.put(["_SetV", str(params[0])], "from_other_sm_sub_state")
+        rsrc_states_queue.put(["_SetV", str(params[0])], "substate_from_other_sm")
 
     def _CloseContactor(self):
         self.feedback_msg = "Closing contactor..."
@@ -66,4 +66,4 @@ class ExampleResource(XQtiveStateMachine):
         v_to_set = float(params[0])
         v_to_return = v_to_set + 5
         ctrl_states_queue = self.all_sm_queues["controller"]["states_queue"]
-        ctrl_states_queue.put(["_ActualV", str(v_to_return)], "from_other_sm_sub_state")
+        ctrl_states_queue.put(["_ActualV", str(v_to_return)], "substate_from_other_sm")
