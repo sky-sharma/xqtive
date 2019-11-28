@@ -81,7 +81,8 @@ def iot_rw(obj):
     all_sm_queues = obj.get("all_sm_queues")
     this_sm_queues = all_sm_queues[sm_name]
     states_queue = this_sm_queues["states_queue"]
-    iot_rw_queue = this_sm_queues["iot_rw_queue"]
+    #iot_rw_queue = this_sm_queues["iot_rw_queue"]
+    iot_rw_queues = this_sm_queues["iot_rw_queues"]
     global config
     config = obj.get("config")
     #dependents = obj.get("dependents")
@@ -102,7 +103,7 @@ def iot_rw(obj):
         iot_client_key_path = f"{certs_dir}/{config['iot']['client_key']}"
     except Exception as e:
         iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
-
+    iot_rw_queue = iot_rw_queues["aws"]
     iot_connected = False
     while True:
         try:
@@ -153,8 +154,10 @@ def launch_state_machines(sm_defs, config, certs_dir):
     all_sm_queues = {}
     for sm_def in sm_defs:
         sm_name = sm_def["sm_name"]
-        uses_iot = sm_def["uses_iot"]
-        sm_queues = create_sm_queues(config, uses_iot)
+        #uses_iot = sm_def["uses_iot"]
+        iot_brokers = sm_def.get("iot_brokers")
+        #sm_queues = create_sm_queues(config, uses_iot)
+        sm_queues = create_sm_queues(config, iot_brokers)
         all_sm_queues[sm_name] = sm_queues
     all_sm = {}
     for sm_def in sm_defs:
@@ -165,27 +168,34 @@ def launch_state_machines(sm_defs, config, certs_dir):
     all_sm_processes = []
     for sm_def in sm_defs:
         sm_name = sm_def["sm_name"]
-        uses_iot = sm_def["uses_iot"]
+        #uses_iot = sm_def["uses_iot"]
+        iot_brokers = sm_def.get("iot_brokers")
         sm = all_sm[sm_name]
-        sm_processes = launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir)
+        #sm_processes = launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir)
+        sm_processes = launch_sm_processes(sm_name, sm, iot_brokers, all_sm_queues, config, certs_dir)
         all_sm_processes += sm_processes
     to_return = {"all_sm_queues": all_sm_queues, "all_sm": all_sm, "all_sm_processes": all_sm_processes}
     return to_return
 
-def create_sm_queues(config, uses_iot):
+#def create_sm_queues(config, uses_iot):
+def create_sm_queues(config, iot_brokers):
     # Create managed PriorityQueue for states
     states_queue = xqtive.XQtiveQueue(config)
 
-    if uses_iot:
-        # Create managed queue for sending messages to process that writes to IoT
-        xqtive.XQtiveSyncMgr.register("Queue", Queue)
-        iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
-        iot_rw_queue_mgr.start()
-        iot_rw_queue = iot_rw_queue_mgr.Queue()
+    #if uses_iot:
+    if iot_brokers != None:
+        iot_brokers = list(iot_brokers)    # Force iot_brokers to a list in case an individual str was passed
+        # Create managed queue for sending messages to process that writes to IoT brokers
+        iot_rw_queues = {}
+        for iot_broker in iot_brokers:
+            xqtive.XQtiveSyncMgr.register("Queue", Queue)
+            iot_rw_queue_mgr = xqtive.XQtiveSyncMgr()
+            iot_rw_queue_mgr.start()
+            iot_rw_queue = iot_rw_queue_mgr.Queue()
+            iot_rw_queues[iot_broker] = iot_rw_queue
     else:
-        iot_rw_queue = None
-
-    sm_queues = {"states_queue": states_queue, "iot_rw_queue": iot_rw_queue}
+        iot_rw_queues = None
+    sm_queues = {"states_queue": states_queue, "iot_rw_queues": iot_rw_queues}
     return sm_queues
 
 def create_sm(config, sm_def, all_sm_queues):
@@ -194,19 +204,23 @@ def create_sm(config, sm_def, all_sm_queues):
     sm = sm_class(sm_name, config, all_sm_queues)
     return sm
 
-def launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir):
+#def launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir):
+def launch_sm_processes(sm_name, sm, iot_brokers, all_sm_queues, config, certs_dir):
     launched_processes = []
 
-    if uses_iot:
+    #if uses_iot:
+    if iot_brokers != None:
+        iot_brokers = list(iot_brokers)    # Force iot_brokers to a list in case an individual str was passed
         # Launch IoT process which receives messages to publish to IoT
-        iot_rw_cfg = {
-            "sm_name": sm_name,
-            "certs_dir": certs_dir,
-            "all_sm_queues": all_sm_queues,
-            "config": config}
-        iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
-        iot_rw_process.start()
-        launched_processes.append(iot_rw_process)
+        for iot_broker in iot_brokers:
+            iot_rw_cfg = {
+                "sm_name": sm_name,
+                "certs_dir": certs_dir,
+                "all_sm_queues": all_sm_queues,
+                "config": config}
+            iot_rw_process = Process(target = iot_rw, args = [iot_rw_cfg])
+            iot_rw_process.start()
+            launched_processes.append(iot_rw_process)
 
     # Launch sm process
     sm_cfg = {
