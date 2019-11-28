@@ -22,7 +22,9 @@ import xqtive_helpers
 config = xqtive_helpers.read_config(config_filepath)
 config["sequences_dir"] = sequences_dir
 
-# Import State Machine Class and create State Machines.
+# Import State Machine Class and create State Machines.  sm_defs includes "iot_brokers"
+# which is the list of IoT Brokers the state machine will communicate with.  Currently "aws"
+# is supported.  "mosquitto" will be added soon.  "azure" planned for future.
 from xqtive_example_state_machines import ExampleController, ExampleResource
 sm_defs = [
     {"sm_name": "controller", "sm_class": ExampleController, "iot_brokers": ["aws"]},
