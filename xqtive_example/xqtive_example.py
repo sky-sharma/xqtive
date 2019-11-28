@@ -25,8 +25,8 @@ config["sequences_dir"] = sequences_dir
 # Import State Machine Class and create State Machines.
 from xqtive_example_state_machines import ExampleController, ExampleResource
 sm_defs = [
-    {"sm_name": "controller", "sm_class": ExampleController, "uses_iot": True},
-    {"sm_name": "resource", "sm_class": ExampleResource, "uses_iot": False}]
+    {"sm_name": "controller", "sm_class": ExampleController, "iot_brokers": ["aws"]},
+    {"sm_name": "resource", "sm_class": ExampleResource}]
 
 all_sm_queues_processes = xqtive_helpers.launch_state_machines(sm_defs, config, certs_dir)
 sm_processes = all_sm_queues_processes["all_sm_processes"]
