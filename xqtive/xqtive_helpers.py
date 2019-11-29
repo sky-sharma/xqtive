@@ -6,11 +6,18 @@ import xqtive
 from queue import Queue
 from multiprocessing import Process
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+from paho.mqtt.client import Client as MosQuiTToClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
-class IotProviders():
-    def __init__(self):
-        pass
+class IotProvider():
+    def __init__(self, aws_iot_mqtt_cfg):
+        self.sm_name = aws_iot_mqtt_cfg["sm_name"]
+        self.iot_broker = aws_iot_mqtt_cfg["iot_broker"]
+        self. iot_port = aws_iot_mqtt_cfg["iot_port"]
+        self.iot_ca_cert_path = aws_iot_mqtt_cfg["iot_ca_cert_path"]
+        self.iot_client_key_path = aws_iot_mqtt_cfg["iot_client_key_path"]
+        self.iot_client_cert_path = aws_iot_mqtt_cfg["iot_client_cert_path"]
+        self.subscribe_topic = aws_iot_mqtt_cfg["subscribe_topic"]
 
     def onmsg(self, msg_payload):
         try:
@@ -33,15 +40,9 @@ class IotProviders():
     def disconnect(self):
         pass
 
-class AwsIotMqtt(IotProviders):
-    def __init__(self, aws_iot_mqtt_cfg):
-        self.sm_name = aws_iot_mqtt_cfg["sm_name"]
-        self.iot_broker = aws_iot_mqtt_cfg["iot_broker"]
-        self. iot_port = aws_iot_mqtt_cfg["iot_port"]
-        self.iot_ca_cert_path = aws_iot_mqtt_cfg["iot_ca_cert_path"]
-        self.iot_client_key_path = aws_iot_mqtt_cfg["iot_client_key_path"]
-        self.iot_client_cert_path = aws_iot_mqtt_cfg["iot_client_cert_path"]
-        self.subscribe_topic = aws_iot_mqtt_cfg["subscribe_topic"]
+
+
+class AwsIotMqtt(IotProvider):
 
     def onmsg(self, msg):
         msg_payload = msg.payload
@@ -62,6 +63,31 @@ class AwsIotMqtt(IotProviders):
 
     def publish(self, publish_topic, msg_str, qos):
         self.aws_iot_mqtt_comm.publish(publish_topic, msg_str, QoS=qos)
+
+
+
+class MosQuiTTo(IotProvider):
+
+    def onmsg(self, client, userdata, msg):
+        msg_payload = msg.payload
+        super().onmsg(msg_payload)
+
+    def connect(self):
+        # A connection to iot is established at the beginning and if publish fails
+        self.mosquitto_comm = MosQuiTToClient()
+        self.mosquitto_comm.on_connect = local_mqtt_on_connect
+        self.mosquitto_comm.on_message = local_mqtt_on_message
+        self.mosquitto_comm.tls_set(local_ca_cert_path, local_client_cert_path, 		local_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
+        self.mosquitto_comm.connect(local_broker, local_port)
+        self.mosquitto_comm.loop_start()
+
+    def disconnect(self, aws_iot_mqtt_comm):
+        self.mosquitto_comm.close()
+
+    def publish(self, publish_topic, msg_str, qos):
+        self.aws_iot_mqtt_comm.publish(publish_topic, msg_str, qos=qos)
+
+
 
 def read_config(config_filepath):
     """
@@ -160,16 +186,18 @@ def iot_rw(obj):
     except Exception as e:
         iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
     iot_rw_queue = iot_rw_queues[iot_provider]
+    aws_iot_mqtt_cfg = {
+        "sm_name": sm_name,
+        "iot_broker": iot_broker,
+        "iot_port": iot_port,
+        "iot_ca_cert_path": iot_ca_cert_path,
+        "iot_client_key_path": iot_client_key_path,
+        "iot_client_cert_path": iot_client_cert_path,
+        "subscribe_topic": subscribe_topic}
     if iot_provider == "aws_iot_mqtt":
-        aws_iot_mqtt_cfg = {
-            "sm_name": sm_name,
-            "iot_broker": iot_broker,
-            "iot_port": iot_port,
-            "iot_ca_cert_path": iot_ca_cert_path,
-            "iot_client_key_path": iot_client_key_path,
-            "iot_client_cert_path": iot_client_cert_path,
-            "subscribe_topic": subscribe_topic}
         iot_comm = AwsIotMqtt(aws_iot_mqtt_cfg)
+    elif iot_provider == "mosquitto":
+        iot_comm = MosQuiTToClient(aws_iot_mqtt_cfg)
     iot_connected = False
     while True:
         try:
