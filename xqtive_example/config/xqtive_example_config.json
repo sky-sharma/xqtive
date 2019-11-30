@@ -12,8 +12,8 @@
 		"broker_address": "a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com",
 		"broker_port": 8883,
 		"ca_cert": "AmazonCAAllFour.pem",
-		"client_cert": "0578125d52-certificate.pem.crt",
-		"client_key": "0578125d52-private.pem.key",
+		"client_cert": "32172de1c3-certificate.pem.crt",
+		"client_key": "32172de1c3-private.pem.key",
 		"subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
