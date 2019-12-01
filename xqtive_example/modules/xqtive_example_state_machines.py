@@ -6,7 +6,8 @@ class ExampleController(XQtiveStateMachine):
     def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = config["states"].get("cust_hi_priority_states")
         self.actual_v = None
-        XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
+        #XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
+        super().__init__(sm_name, config, all_sm_queues)
 
     def MESSAGE(self):
         print(f"Message {self.__dict__}")
@@ -59,7 +60,8 @@ class ExampleController(XQtiveStateMachine):
 class ExampleResource(XQtiveStateMachine):
     def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = []
-        XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
+        #XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
+        super().__init__(sm_name, config, all_sm_queues)
 
     def _SetV(self, params):
         time.sleep(20)
