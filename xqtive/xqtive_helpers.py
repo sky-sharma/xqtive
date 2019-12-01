@@ -77,7 +77,7 @@ class MosQuiTTo(IotProvider):
         self.mosquitto_comm = MosQuiTToClient()
         self.mosquitto_comm.on_connect = local_mqtt_on_connect
         self.mosquitto_comm.on_message = local_mqtt_on_message
-        self.mosquitto_comm.tls_set(local_ca_cert_path, local_client_cert_path, 		local_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
+        self.mosquitto_comm.tls_set(local_ca_cert_path, local_client_cert_path,local_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
         self.mosquitto_comm.connect(local_broker, local_port)
         self.mosquitto_comm.loop_start()
 
@@ -85,7 +85,7 @@ class MosQuiTTo(IotProvider):
         self.mosquitto_comm.close()
 
     def publish(self, publish_topic, msg_str, qos):
-        self.aws_iot_mqtt_comm.publish(publish_topic, msg_str, qos=qos)
+        self.mosquitto_comm.publish(publish_topic, msg_str, qos=qos)
 
 
 
@@ -173,16 +173,16 @@ def iot_rw(obj):
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
-        iot_broker = config["iot"]["broker_address"]
-        iot_port = config["iot"]["broker_port"]
-        subscribe_topic = f"{config['iot']['subscribe_topic_prefix']}/{sm_name}"
+        iot_broker = config[iot_provider]["broker_address"]
+        iot_port = config[iot_provider]["broker_port"]
+        subscribe_topic = f"{config[iot_provider]['subscribe_topic_prefix']}/{sm_name}"
         #dependent_topics = []
         #for dependent in dependents:
-        #    dependent_topics.append(f"{config['iot']['subscribe_topic_prefix']}/{dependent}")
-        publish_topic = config["iot"]["publish_topic"]
-        iot_ca_cert_path = f"{certs_dir}/{config['iot']['ca_cert']}"
-        iot_client_cert_path = f"{certs_dir}/{config['iot']['client_cert']}"
-        iot_client_key_path = f"{certs_dir}/{config['iot']['client_key']}"
+        #    dependent_topics.append(f"{config[iot_provider]['subscribe_topic_prefix']}/{dependent}")
+        publish_topic = config[iot_provider]["publish_topic"]
+        iot_ca_cert_path = f"{certs_dir}/{config[iot_provider]['ca_cert']}"
+        iot_client_cert_path = f"{certs_dir}/{config[iot_provider]['client_cert']}"
+        iot_client_key_path = f"{certs_dir}/{config[iot_provider]['client_key']}"
     except Exception as e:
         iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
     iot_rw_queue = iot_rw_queues[iot_provider]
@@ -218,7 +218,7 @@ def iot_rw(obj):
                     # If there was an error during connection close and wait before trying again
                     #iot_comm.close()
                     iot_comm.disconnect()
-                    time.sleep(config["iot"]["wait_between_reconn_attempts"])
+                    time.sleep(config[iot_provider]["wait_between_reconn_attempts"])
                     iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}; reconnecting...")
             else:
                 dequeued = iot_rw_queue.get()
