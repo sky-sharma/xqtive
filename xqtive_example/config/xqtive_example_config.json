@@ -17,5 +17,16 @@
 		"subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
+	},
+  "mosquitto":
+	{
+		"broker_address": "LPS",
+		"broker_port": 8883,
+		"ca_cert": "lps_ca.crt",
+		"client_cert": "lps_client.crt",
+		"client_key": "lps_client.key",
+		"subscribe_topic_prefix": "xqtive",
+    "publish_topic": "xqtive/feedback",
+    "wait_between_reconn_attempts": 3
 	}
 }
