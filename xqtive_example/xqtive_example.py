@@ -27,7 +27,7 @@ config["sequences_dir"] = sequences_dir
 # is supported.  "mosquitto" will be added soon.  "azure" planned for future.
 from xqtive_example_state_machines import ExampleController, ExampleResource
 sm_defs = [
-    {"sm_name": "controller", "sm_class": ExampleController, "iot_providers": ["aws_iot_mqtt"]},
+    {"sm_name": "controller", "sm_class": ExampleController, "iot_providers": ["aws_iot_mqtt", "mosquitto"]},
     {"sm_name": "resource", "sm_class": ExampleResource}]
 
 all_sm_queues_processes = xqtive_helpers.launch_state_machines(sm_defs, config, certs_dir)
