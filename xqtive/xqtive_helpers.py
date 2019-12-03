@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+import ssl
 import xqtive
 from queue import Queue
 from multiprocessing import Process
@@ -58,8 +59,8 @@ class AwsIotMqtt(IotProvider):
         self.aws_iot_mqtt_comm.subscribe(self.subscribe_topic, 1, None)
         #return aws_iot_mqtt_comm
 
-    def disconnect(self, aws_iot_mqtt_comm):
-        self.aws_iot_mqtt_comm.close()
+    def disconnect(self):
+        self.aws_iot_mqtt_comm.disconnect()
 
     def publish(self, publish_topic, msg_str, qos):
         self.aws_iot_mqtt_comm.publish(publish_topic, msg_str, QoS=qos)
@@ -68,7 +69,7 @@ class AwsIotMqtt(IotProvider):
 
 class MosQuiTTo(IotProvider):
 
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, rc):
         client.subscribe(self.subscribe_topic, qos=0)
         print(f"subscribed to {self.subscribe_topic}")
 
@@ -81,12 +82,12 @@ class MosQuiTTo(IotProvider):
         self.mosquitto_comm = MosQuiTToClient()
         self.mosquitto_comm.on_connect = self.on_connect
         self.mosquitto_comm.on_message = self.onmsg
-        self.mosquitto_comm.tls_set(local_ca_cert_path, local_client_cert_path,local_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
-        self.mosquitto_comm.connect(local_broker, local_port)
+        self.mosquitto_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
+        self.mosquitto_comm.connect(self.iot_broker, self.iot_port)
         self.mosquitto_comm.loop_start()
 
-    def disconnect(self, aws_iot_mqtt_comm):
-        self.mosquitto_comm.close()
+    def disconnect(self):
+        self.mosquitto_comm.disconnect()
 
     def publish(self, publish_topic, msg_str, qos):
         self.mosquitto_comm.publish(publish_topic, msg_str, qos=qos)
@@ -201,20 +202,21 @@ def iot_rw(obj):
     if iot_provider == "aws_iot_mqtt":
         iot_comm = AwsIotMqtt(iot_provider_cfg)
     elif iot_provider == "mosquitto":
-        iot_comm = MosQuiTToClient(iot_provider_cfg)
+        iot_comm = MosQuiTTo(iot_provider_cfg)
     iot_connected = False
     while True:
         try:
             if not iot_connected:
                 try:
                     iot_comm.connect()
+                    logging.warning(f"Connected to {iot_provider}: {iot_comm}")
                     iot_connected = True
                 except Exception as e:
                     # If there was an error during connection close and wait before trying again
                     #iot_comm.close()
                     iot_comm.disconnect()
-                    time.sleep(config[iot_provider]["wait_between_reconn_attempts"])
                     iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}; reconnecting...")
+                    time.sleep(config[iot_provider]["wait_between_reconn_attempts"])
             else:
                 dequeued = iot_rw_queue.get()
                 if dequeued == "SHUTDOWN":
@@ -223,6 +225,8 @@ def iot_rw(obj):
                     #msg_str = json.dumps(msg_dict)
                     #for dependent_topic in dependent_topics:
                     #    iot_comm.publish(dependent_topic, msg_str, QoS=1)
+                    iot_comm.disconnect()
+                    logging.warning(f"Disconnected from {iot_provider}.")
                     break
                 else:
                     #type = dequeued["type"]
@@ -233,10 +237,10 @@ def iot_rw(obj):
         except Exception as e:
             iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
 
-
+"""
 def iot_close(iot_comm):
     iot_comm.disconnect()
-
+"""
 
 def create_logger(logger_name, config):
     logging.basicConfig(filename=f"/var/log/{logger_name}.log", format="%(asctime)s %(message)s", level=config["log_level"])
