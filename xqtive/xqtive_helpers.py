@@ -13,6 +13,10 @@ from paho.mqtt.client import Client as MosQuiTToClient
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
 class IotProvider():
+    """
+    Generic class defining all IoT Providers (e.g. AWS, MosQuiTTo etc.)
+    """
+
     def __init__(self, iot_provider_cfg):
         self.sm_name = iot_provider_cfg["sm_name"]
         self.iot_broker = iot_provider_cfg["iot_broker"]
@@ -23,6 +27,7 @@ class IotProvider():
         self.subscribe_topic = iot_provider_cfg["subscribe_topic"]
 
     def onmsg(self, msg_payload):
+        # Core event handler for incoming messages
         try:
             dict_payload = json.loads(msg_payload)
             msg_type = dict_payload["msg_type"].strip().lower()    # Remove whitespace from both ends and make lower-case
@@ -46,8 +51,12 @@ class IotProvider():
 
 
 class AwsIotMqtt(IotProvider):
+    """
+    Child class containing implementations of IotProvider specific to Amazon Web Services.
+    """
 
     def onmsg(self, msg):
+        # Wraps core event handler for incoming messages
         msg_payload = msg.payload
         super().onmsg(msg_payload)
 
@@ -59,7 +68,6 @@ class AwsIotMqtt(IotProvider):
         self.aws_iot_mqtt_comm.configureCredentials(self.iot_ca_cert_path, self.iot_client_key_path, self.iot_client_cert_path)
         self.aws_iot_mqtt_comm.connect()
         self.aws_iot_mqtt_comm.subscribe(self.subscribe_topic, 1, None)
-        #return aws_iot_mqtt_comm
 
     def disconnect(self):
         self.aws_iot_mqtt_comm.disconnect()
@@ -70,12 +78,17 @@ class AwsIotMqtt(IotProvider):
 
 
 class MosQuiTTo(IotProvider):
+    """
+    Child class containing implementations of IotProvider specific to MosQuiTTo.
+    """
 
     def on_connect(self, client, userdata, flags, rc):
+        # Event handler for connection event. Subscribe to topic(s) here.
         client.subscribe(self.subscribe_topic, qos=0)
         print(f"subscribed to {self.subscribe_topic}")
 
     def onmsg(self, client, userdata, msg):
+        # Wraps core event handler for incoming messages
         msg_payload = msg.payload
         super().onmsg(msg_payload)
 
@@ -97,35 +110,48 @@ class MosQuiTTo(IotProvider):
 
 
 class ClearBladeIot(IotProvider):
+    """
+    Child class containing implementations of IotProvider specific to CleaBlade.
+    """
 
     def __init__(self, iot_provider_cfg):
+        # 1. Load path to ClearBlade-specific module from config and add to path.
+        # 2. Import ClearBlade-specific module.
+        # 3. Load system_key and system_secret from config.
+        # 4. Create "System" object.
+        # 5. Call parent class' __init__
         sys.path.append(iot_provider_cfg["module_dir"])
-        #from clearblade.Messaging import Messaging as ClearBladeMessaging    # Import Messaging class from Messaging.py
-        #from clearblade.Users import AnonUser as ClearBladeUser    # Import User class from Messaging.py
         from clearblade.ClearBladeCore import System as ClearBladeSystem
         self.ClearBladeSystem = ClearBladeSystem(iot_provider_cfg["system_key"], iot_provider_cfg["system_secret"])
         super().__init__(iot_provider_cfg)
 
     def on_connect(self, client, userdata, flags, rc):
+        # Event handler for connection event. Subscribe to topic(s) here.
         client.subscribe(self.subscribe_topic)
         print(f"subscribed to {self.subscribe_topic}")
 
     def onmsg(self, client, userdata, msg):
+        # Wraps core event handler for incoming messages
         msg_payload = msg.payload
         super().onmsg(msg_payload)
 
     def connect(self):
-        # A connection to iot is established at the beginning and if publish fails
+        # A connection to iot is established at the beginning and if publish fails.
+        # 1. Create AnonUser.
+        # 2. Create Messaging object with AnonUser as param.
+        # 3. Pass on_connect function.
+        # 4. Pass onmsg function.
+        # 5. Call Messaging object's "connect" method.
         self.clearblade_iot_user = self.ClearBladeSystem.AnonUser()
         self.clearblade_iot_comm = self.ClearBladeSystem.Messaging(self.clearblade_iot_user, client_id="xqtive")
         self.clearblade_iot_comm.on_connect = self.on_connect
         self.clearblade_iot_comm.on_message = self.onmsg
-        #self.clearblade_iot_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
         self.clearblade_iot_comm.connect()
-        #self.mosquitto_comm.loop_start()
 
     def publish(self, publish_topic, msg_str, qos):
         self.clearblade_iot_comm.publish(publish_topic, msg_str, qos=qos)
+
+
 
 def read_config(config_filepath):
     """
@@ -154,6 +180,9 @@ def state_params_str_to_array(state_params_str):
 
 
 def get_sequence_names(config):
+    """
+    Return list of sequence files' names found in sequences_dir.
+    """
     sequence_names = []
     sequence_names += [filename for filename in os.listdir(config["sequences_dir"]) if filename.endswith(".seq")]
     return sequence_names
@@ -175,55 +204,45 @@ def read_sequence_file(sequence_filepath):
     return states_and_params
 
 
-def iot_onmsg(msg):
-    try:
-        msg_payload = msg.payload
-        dict_payload = json.loads(msg_payload)
-        msg_type = dict_payload["msg_type"].strip().lower()    # Remove whitespace from both ends and make lower-case
-        value = dict_payload["value"].strip()
-        if msg_type == "run_sequence":
-            states_and_params = read_sequence_file(f"{config['sequences_dir']}/{value}.seq")
-            for state_and_params in states_and_params:
-                states_queue.put(state_and_params, "from_sequence")
-        elif msg_type == "run_state":
-            state_and_params = state_params_str_to_array(value)
-            states_queue.put(state_and_params, "from_iot")
-    except Exception as e:
-        iot_rw_logger.error(f"ERROR; iot_onmsg; {sm_name}; {type(e).__name__}; {e}")
-
-
 def iot_rw(obj):
-    global sm_name
+    """
+    Function that runs within the process dedicated to communicating with an IoT Provider.
+    """
+
+    # Retrieve params passed in through obj
+    global sm_name    # sm_name needed by functions defined outside of this function.
     sm_name = obj.get("sm_name")
     certs_dir = obj.get("certs_dir")
     iot_provider = obj.get("iot_provider")
-    global states_queue
+    global states_queue    # states_queue needed by functions defined outside of this function.
     all_sm_queues = obj.get("all_sm_queues")
     this_sm_queues = all_sm_queues[sm_name]
     states_queue = this_sm_queues["states_queue"]
-    #iot_rw_queue = this_sm_queues["iot_rw_queue"]
     iot_rw_queues = this_sm_queues["iot_rw_queues"]
-    global config
+    global config    # config needed by functions defined outside of this function.
     config = obj.get("config")
-    #dependents = obj.get("dependents")
     process_name = f"{sm_name}_iot_rw"
-    global iot_rw_logger
+    global iot_rw_logger    # iot_rw_logger needed by functions defined outside of this function.
+
+    # Create logger
     iot_rw_logger = create_logger(process_name, config)
+
+    # Configure connection to IoT provider
     try:
-        # Configure connection to IoT broker
         iot_broker = config[iot_provider].get("broker_address")
         iot_port = config[iot_provider].get("broker_port")
         subscribe_topic = f"{config[iot_provider]['subscribe_topic_prefix']}/{sm_name}"
-        #dependent_topics = []
-        #for dependent in dependents:
-        #    dependent_topics.append(f"{config[iot_provider]['subscribe_topic_prefix']}/{dependent}")
         publish_topic = config[iot_provider]["publish_topic"]
         iot_ca_cert_path = f"{certs_dir}/{config[iot_provider].get('ca_cert')}"
         iot_client_cert_path = f"{certs_dir}/{config[iot_provider].get('client_cert')}"
         iot_client_key_path = f"{certs_dir}/{config[iot_provider].get('client_key')}"
     except Exception as e:
-        iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
+        iot_rw_logger.error(f"ERROR; Init of {process_name}; {type(e).__name__}; {e}")
+
+    # iot_rw_queues is a dict with a queue reference for each IoT Provider used by this application
     iot_rw_queue = iot_rw_queues[iot_provider]
+
+    # Create specific IotProvider object for THIS process
     iot_provider_cfg = {
         "sm_name": sm_name,
         "iot_broker": iot_broker,
@@ -241,6 +260,7 @@ def iot_rw(obj):
         iot_comm = MosQuiTTo(iot_provider_cfg)
     elif iot_provider == "clearblade_iot":
         iot_comm = ClearBladeIot(iot_provider_cfg)
+
     iot_connected = False
     while True:
         try:
@@ -251,74 +271,79 @@ def iot_rw(obj):
                     iot_connected = True
                 except Exception as e:
                     # If there was an error during connection close and wait before trying again
-                    #iot_comm.close()
                     iot_comm.disconnect()
-                    iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}; reconnecting...")
+                    iot_rw_logger.error(f"ERROR; Attempted to connect; main loop of {process_name}; {type(e).__name__}; {e}; reconnecting...")
                     time.sleep(config[iot_provider]["wait_between_reconn_attempts"])
             else:
                 dequeued = iot_rw_queue.get()
                 if dequeued == "SHUTDOWN":
-                    # Send SHUTDOWN to topics of dependents, then exit
-                    #msg_dict = {"type": "run_state", "value": "SHUTDOWN"}
-                    #msg_str = json.dumps(msg_dict)
-                    #for dependent_topic in dependent_topics:
-                    #    iot_comm.publish(dependent_topic, msg_str, QoS=1)
                     iot_comm.disconnect()
                     logging.warning(f"Disconnected from {iot_provider}.")
                     break
                 else:
-                    #type = dequeued["type"]
                     msg_dict = dequeued
                     msg_str = json.dumps(msg_dict)
-                    #iot_comm.publish(publish_topic, msg_str, QoS=1)
-                    iot_comm.publish(publish_topic, msg_str, 1)
+                    try:
+                        iot_comm.publish(publish_topic, msg_str, 1)
+                    except Exception as e:
+                        # If there was an error during connection close and wait before trying again
+                        iot_comm.disconnect()
+                        iot_rw_logger.error(f"ERROR; Attempted to publish {msg_str} to {publish_topic}; main loop of {process_name}; {type(e).__name__}; {e}; reconnecting...")
+                        time.sleep(config[iot_provider]["wait_between_reconn_attempts"])
         except Exception as e:
-            iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
+            iot_rw_logger.error(f"ERROR; main loop of {process_name}; {type(e).__name__}; {e}")
 
-"""
-def iot_close(iot_comm):
-    iot_comm.disconnect()
-"""
 
 def create_logger(logger_name, config):
+    """
+    Create logger dedicated to this process
+    """
     logging.basicConfig(filename=f"/var/log/{logger_name}.log", format="%(asctime)s %(message)s", level=config["log_level"])
     logger = logging.getLogger(logger_name)
     return logger
 
 
 def launch_state_machines(sm_defs, config, certs_dir):
+    """
+    Launch all processes pertinent to all state machines. This includes creating the state machine objects and all
+    queues that the various processes will receive messages on.  Also includes launching all processes for IoT Providers that
+    these state machines talk to.
+    """
+
+    # Create all queues
     all_sm_queues = {}
     for sm_def in sm_defs:
         sm_name = sm_def["sm_name"]
-        #uses_iot = sm_def["uses_iot"]
         iot_providers = sm_def.get("iot_providers")
-        #sm_queues = create_sm_queues(config, uses_iot)
         sm_queues = create_sm_queues(config, iot_providers)
         all_sm_queues[sm_name] = sm_queues
+
+    # Create all state machine objects
     all_sm = {}
     for sm_def in sm_defs:
         sm_name = sm_def["sm_name"]
         sm_class = sm_def["sm_class"]
         sm = create_sm(config, sm_def, all_sm_queues)
         all_sm[sm_name] = sm
+
+    # Launch all processes
     all_sm_processes = []
     for sm_def in sm_defs:
         sm_name = sm_def["sm_name"]
-        #uses_iot = sm_def["uses_iot"]
         iot_providers = sm_def.get("iot_providers")
         sm = all_sm[sm_name]
-        #sm_processes = launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir)
         sm_processes = launch_sm_processes(sm_name, sm, iot_providers, all_sm_queues, config, certs_dir)
         all_sm_processes += sm_processes
     to_return = {"all_sm_queues": all_sm_queues, "all_sm": all_sm, "all_sm_processes": all_sm_processes}
     return to_return
 
-#def create_sm_queues(config, uses_iot):
+
 def create_sm_queues(config, iot_providers):
-    # Create managed PriorityQueue for states
+    """
+    Create the managed PriorityQueues that will carry states and parameters for all state machines
+    """
     states_queue = xqtive.XQtiveQueue(config)
 
-    #if uses_iot:
     if iot_providers != None:
         iot_providers = list(iot_providers)    # Force iot_providers to a list in case an individual str was passed
         # Create managed queue for sending messages to process that writes to IoT brokers
@@ -334,17 +359,23 @@ def create_sm_queues(config, iot_providers):
     sm_queues = {"states_queue": states_queue, "iot_rw_queues": iot_rw_queues}
     return sm_queues
 
+
 def create_sm(config, sm_def, all_sm_queues):
+    """
+    Create a State Machine object and return it
+    """
     sm_name = sm_def["sm_name"]
     sm_class = sm_def["sm_class"]
     sm = sm_class(sm_name, config, all_sm_queues)
     return sm
 
-#def launch_sm_processes(sm_name, sm, uses_iot, all_sm_queues, config, certs_dir):
-def launch_sm_processes(sm_name, sm, iot_providers, all_sm_queues, config, certs_dir):
-    launched_processes = []
 
-    #if uses_iot:
+def launch_sm_processes(sm_name, sm, iot_providers, all_sm_queues, config, certs_dir):
+    """
+    Launch all processes
+    """
+
+    launched_processes = []
     if iot_providers != None:
         iot_providers = list(iot_providers)    # Force iot_providers to a list in case an individual str was passed
         # Launch IoT process which receives messages to publish to IoT
