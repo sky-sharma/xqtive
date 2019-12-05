@@ -57,6 +57,10 @@ class XQtiveStateMachine(object):
             self.sleep_time = default_sleep_time
 
     def _set_other_sm_queues(self, other_sm_queues):
+        """
+        Give THIS state machine the queues of OTHER state machines so they can all
+        send each other messages.
+        """
         self.other_sm_queues = other_sm_queues
 
     def SLEEP(self, params):
@@ -170,16 +174,22 @@ class XQtiveStateMachine(object):
                 return next_states_params
 
     def _ReadPollVar(poll_var):
+        """
+        This method is expected to be overridden by a customer-specific State Machine class. The functionality to
+        read ALL polled variables will be contained in that function.
+        """
         pass
 
     def SHUTDOWN(self):
-        # Send SHUTDOWN messages to all other State Machine queues
+        """
+        Send SHUTDOWN messages to all other State Machine queues
+        """
         self.all_sm_queues.pop(self.sm_name)
         try:
             for sm_queues in list(self.all_sm_queues.values()):
                 sm_queues["states_queue"].put(["SHUTDOWN"], "from_other_sm")
         except:
-            # We're passing on errors here because the state_machine we are trying to stop may already have stopped
+            # Passing on errors here because the errors may be that the state_machine to be stopped has already stopped
             pass
         return "SHUTDOWN"
 
@@ -200,6 +210,8 @@ class XQtiveQueue():
         states_queue_mgr = XQtiveSyncMgr()
         states_queue_mgr.start()
 
+        # Create managed priority queue and initialize put_count (how many times items have been put in the queue),
+        # priority_values and last_state priority.
         self.queue = states_queue_mgr.PriorityQueue()
         self.put_count = 0
         self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
@@ -214,9 +226,6 @@ class XQtiveQueue():
                 self.cust_hi_priority_states = {}
         except:
             self.cust_hi_priority_states = {}
-
-        # Make sure all priority entries are upper case
-        #cust_hi_priorities.update((key, val.upper()) for key, val in cust_hi_priorities.items())
 
         # Merge existing hi_priority_states with custom ones
         hi_priority_states = set(self.hi_priority_states)
@@ -265,6 +274,9 @@ class XQtiveQueue():
         self.queue.put((priority_to_use, self.put_count, state_and_params))
 
     def get(self):
+        """
+        Pull item from queue and handle.
+        """
         gotten_item = self.queue.get()
         self.last_state_priority = gotten_item[0]
         gotten_item_data = gotten_item[2]    # Skip element 1 which is put_count
@@ -283,13 +295,15 @@ class XQtiveQueue():
 
 
 def xqtive_state_machine(obj):
+    """
+    Main function of the State Machine.  This will run in a dedicated process.
+    """
+
     sm_name = obj.get("sm_name")
     sm = obj.get("sm")
     all_sm_queues = obj.get("all_sm_queues")
     this_sm_queues = all_sm_queues[sm_name]
-    #sm = this_sm_and_queues["sm"]
     states_queue = this_sm_queues["states_queue"]
-    #iot_rw_queue = this_sm_queues["iot_rw_queue"]
     iot_rw_queues = this_sm_queues["iot_rw_queues"]
     config = obj.get("config")
     process_name = f"{sm_name}_xqtive_sm"
@@ -354,4 +368,3 @@ def xqtive_state_machine(obj):
                         states_queue.put(state_and_params, priority_qual)
         except Exception as e:
             xqtive_sm_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
-            pass
