@@ -28,15 +28,5 @@
 		"subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
-	},
-  "clearblade_iot":
-  {
-    "module_dir": "/home/skysharma/ClearBlade/Python-API/clearblade",
-		"broker_port": 1883,
-    "system_key": "cae3b8de0bbaefcaddbfa0cada3c",
-    "system_secret": "CAE3B8DE0B96BB93AA9CBCD0BB09",
-		"subscribe_topic_prefix": "xqtive",
-    "publish_topic": "xqtive/feedback",
-    "wait_between_reconn_attempts": 3
-  }
+	}
 }
