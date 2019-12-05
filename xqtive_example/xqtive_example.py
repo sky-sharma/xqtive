@@ -1,6 +1,7 @@
 import os
 import sys
 
+# Get directory paths
 base_dir = os.path.dirname(os.path.abspath(__file__))
 xqtive_dir = f"{base_dir}/../xqtive"
 modules_dir = f"{base_dir}/modules"
