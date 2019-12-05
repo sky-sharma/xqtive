@@ -4,6 +4,8 @@ import time
 import logging
 import ssl
 import xqtive
+import sys
+from pathlib import Path
 from queue import Queue
 from multiprocessing import Process
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
@@ -94,6 +96,37 @@ class MosQuiTTo(IotProvider):
 
 
 
+class ClearBladeIot(IotProvider):
+
+    def __init__(self, iot_provider_cfg):
+        sys.path.append(iot_provider_cfg["module_dir"])
+        #from clearblade.Messaging import Messaging as ClearBladeMessaging    # Import Messaging class from Messaging.py
+        #from clearblade.Users import AnonUser as ClearBladeUser    # Import User class from Messaging.py
+        from clearblade.ClearBladeCore import System as ClearBladeSystem
+        self.ClearBladeSystem = ClearBladeSystem(iot_provider_cfg["system_key"], iot_provider_cfg["system_secret"])
+        super().__init__(iot_provider_cfg)
+
+    def on_connect(self, client, userdata, flags, rc):
+        client.subscribe(self.subscribe_topic)
+        print(f"subscribed to {self.subscribe_topic}")
+
+    def onmsg(self, client, userdata, msg):
+        msg_payload = msg.payload
+        super().onmsg(msg_payload)
+
+    def connect(self):
+        # A connection to iot is established at the beginning and if publish fails
+        self.clearblade_iot_user = self.ClearBladeSystem.AnonUser()
+        self.clearblade_iot_comm = self.ClearBladeSystem.Messaging(self.clearblade_iot_user, client_id="xqtive")
+        self.clearblade_iot_comm.on_connect = self.on_connect
+        self.clearblade_iot_comm.on_message = self.onmsg
+        #self.clearblade_iot_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
+        self.clearblade_iot_comm.connect()
+        #self.mosquitto_comm.loop_start()
+
+    def publish(self, publish_topic, msg_str, qos):
+        self.clearblade_iot_comm.publish(publish_topic, msg_str, qos=qos)
+
 def read_config(config_filepath):
     """
     Read config JSON file and return as managed dict
@@ -178,16 +211,16 @@ def iot_rw(obj):
     iot_rw_logger = create_logger(process_name, config)
     try:
         # Configure connection to IoT broker
-        iot_broker = config[iot_provider]["broker_address"]
-        iot_port = config[iot_provider]["broker_port"]
+        iot_broker = config[iot_provider].get("broker_address")
+        iot_port = config[iot_provider].get("broker_port")
         subscribe_topic = f"{config[iot_provider]['subscribe_topic_prefix']}/{sm_name}"
         #dependent_topics = []
         #for dependent in dependents:
         #    dependent_topics.append(f"{config[iot_provider]['subscribe_topic_prefix']}/{dependent}")
         publish_topic = config[iot_provider]["publish_topic"]
-        iot_ca_cert_path = f"{certs_dir}/{config[iot_provider]['ca_cert']}"
-        iot_client_cert_path = f"{certs_dir}/{config[iot_provider]['client_cert']}"
-        iot_client_key_path = f"{certs_dir}/{config[iot_provider]['client_key']}"
+        iot_ca_cert_path = f"{certs_dir}/{config[iot_provider].get('ca_cert')}"
+        iot_client_cert_path = f"{certs_dir}/{config[iot_provider].get('client_cert')}"
+        iot_client_key_path = f"{certs_dir}/{config[iot_provider].get('client_key')}"
     except Exception as e:
         iot_rw_logger.error(f"ERROR; {process_name}; {type(e).__name__}; {e}")
     iot_rw_queue = iot_rw_queues[iot_provider]
@@ -198,11 +231,16 @@ def iot_rw(obj):
         "iot_ca_cert_path": iot_ca_cert_path,
         "iot_client_key_path": iot_client_key_path,
         "iot_client_cert_path": iot_client_cert_path,
-        "subscribe_topic": subscribe_topic}
+        "subscribe_topic": subscribe_topic,
+        "module_dir": config[iot_provider].get("module_dir"),
+        "system_key": config[iot_provider].get("system_key"),
+        "system_secret": config[iot_provider].get("system_secret")}
     if iot_provider == "aws_iot_mqtt":
         iot_comm = AwsIotMqtt(iot_provider_cfg)
     elif iot_provider == "mosquitto":
         iot_comm = MosQuiTTo(iot_provider_cfg)
+    elif iot_provider == "clearblade_iot":
+        iot_comm = ClearBladeIot(iot_provider_cfg)
     iot_connected = False
     while True:
         try:
