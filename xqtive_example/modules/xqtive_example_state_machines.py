@@ -3,10 +3,14 @@ import time
 from xqtive import XQtiveStateMachine
 
 class ExampleController(XQtiveStateMachine):
+    """
+    This is an example of a customer-specific State Machine class that inherits from XQtiveStateMachine.
+    It is used as the "controller" in the example application.
+    """
+
     def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = config["states"].get("cust_hi_priority_states")
         self.actual_v = None
-        #XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
         super().__init__(sm_name, config, all_sm_queues)
 
     def MESSAGE(self):
@@ -58,14 +62,16 @@ class ExampleController(XQtiveStateMachine):
 
 
 class ExampleResource(XQtiveStateMachine):
+    """
+    This is an example of a customer-specific State Machine class that inherits from XQtiveStateMachine.
+    It is used as the "resource" in the example application.
+    """
     def __init__(self, sm_name, config, all_sm_queues):
         self.cust_hi_priority_states = []
-        #XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)
         super().__init__(sm_name, config, all_sm_queues)
 
     def _SetV(self, params):
-        time.sleep(20)
-        v_to_set = float(params[0])
-        v_to_return = v_to_set + 5
+        # Simulate an actual setting that is slightly different from param
+        v_to_set = float(params[0]) + random.uniform(-1, 1)
         ctrl_states_queue = self.all_sm_queues["controller"]["states_queue"]
-        ctrl_states_queue.put(["_ActualV", str(v_to_return)], "substate_from_other_sm")
+        ctrl_states_queue.put(["_ActualV", str(v_to_set)], "substate_from_other_sm")
