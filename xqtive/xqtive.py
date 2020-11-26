@@ -279,8 +279,8 @@ class XQtiveQueue():
         self.last_state_priority = gotten_item[0]
         gotten_item_data = gotten_item[2]    # Skip element 1 which is put_count
 
-        # If gotten item is of High (0) then none of the other items already in the queue are to be handled. So Flush queue.
-        if self.last_state_priority == 0:
+        # If gotten item is of High (-inf) then none of the other items already in the queue are to be handled. So Flush queue.
+        if self.last_state_priority == float('-inf'):
             while not self.queue.empty():
                 try:
                     self.queue.get(False)
