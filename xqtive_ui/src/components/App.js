@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import SequenceSelector from '../components/SequenceSelector';
 import RunSequenceButton from '../components/RunSequenceButton';
 import ClearDisplayButton from '../components/ClearDisplayButton';
+import EStopButton from '../components/EStopButton';
 import ShutdownButton from '../components/ShutdownButton';
 
 Amplify.configure({
@@ -87,8 +88,16 @@ const App = () => {
                     </div>
                     <div className="five wide column">
                         <SequenceSelector sequences={sequences} onSeqSelection={onSeqSelection}/>
+                        <br />
                         <RunSequenceButton selectedSeq={selectedSeq} onRunSeqClick={sendMsgToXqtiveController} />
-                        <ShutdownButton onShutdownClick={sendMsgToXqtiveController}/>
+                        <br />
+                        <br />
+                        <EStopButton onEStopClick={sendMsgToXqtiveController} />
+                        <br />
+                        <br />
+                        <br />
+                        <br />
+                        <ShutdownButton onShutdownClick={sendMsgToXqtiveController} />
                     </div>
                 </div>
             </div>
