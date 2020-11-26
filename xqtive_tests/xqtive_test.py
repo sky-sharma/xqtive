@@ -13,7 +13,7 @@ sys.path.append(xqtive_example_dir)
 from xqtive import XQtiveStateMachine
 
 def _create_state_machine():
-    config = {"states": {"normal_priority": 999999, "hi_priority_states": ["PWR_SPLY_OFF", "E_STOP"]}}
+    config = {"states": {"normal_priority": 0, "hi_priority_states": ["PWR_SPLY_OFF", "E_STOP"]}}
     class TestStateMachine(XQtiveStateMachine):
         def __init__(self, sm_name, config, all_sm_queues):
             XQtiveStateMachine.__init__(self, sm_name, config, all_sm_queues)

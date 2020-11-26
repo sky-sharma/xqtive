@@ -29,7 +29,7 @@ class XQtiveStateMachine(object):
         self.poll_lo_thresh = None
         self.poll_hi_thresh = None
         self.poll_match = None
-        self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
+        self.priority_values = {"HIGH": float("-inf"), "NORMAL": config["states"].get("normal_priority", 0)}
         self.hi_priority_states = config["states"].get("hi_priority_states")
         self.all_sm_queues = all_sm_queues
         try:
@@ -214,7 +214,7 @@ class XQtiveQueue():
         # priority_values and last_state priority.
         self.queue = states_queue_mgr.PriorityQueue()
         self.put_count = 0
-        self.priority_values = {"HIGH": 0, "NORMAL": config["states"].get("normal_priority", 999999)}
+        self.priority_values = {"HIGH": float('-inf'), "NORMAL": config["states"].get("normal_priority", 0)}
         self.last_state_priority = self.priority_values["NORMAL"]
 
         # All predefined priorities are ABOVE normal.
@@ -264,10 +264,8 @@ class XQtiveQueue():
         elif priority_qual in ["substate_from_this_sm", "substate_from_other_sm"]:
             if state_to_exec in self.hi_priority_states:
                 priority_to_use = self.priority_values["HIGH"]
-            elif self.last_state_priority > 0:
-                priority_to_use = self.last_state_priority - 1
             else:
-                priority_to_use = self.last_state_priority
+                priority_to_use = self.last_state_priority - 1
         elif priority_qual == "repeated_wait_poll":
             priority_to_use = self.last_state_priority
         self.put_count += 1
