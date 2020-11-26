@@ -9,7 +9,7 @@ import ShutdownButton from '../components/ShutdownButton';
 
 Amplify.configure({
     Auth: {
-      identityPoolId: 'us-east-2:d5279c86-de14-4b86-9525-40c8d5ab4cb0',
+      identityPoolId: '<identityPoolId>',
       region: 'us-east-2',
     },
 });
