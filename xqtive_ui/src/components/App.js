@@ -27,6 +27,7 @@ const App = () => {
     const rcvMsgFromXqtiveController = (data) => {
         console.log("rcvMsgFromXqtiveController!", data);
         const msg = data.value;
+        const msg_sender = msg.sender;
         const msg_type = msg.msg_type;
         const msg_val = msg.value;
         switch (msg_type) {
@@ -35,7 +36,7 @@ const App = () => {
                 setSequences(msg_val.map(seq => { return (seq.split('.seq')[0]) }));
                 break;
             default:
-                setDisplay(display =>`${JSON.stringify(msg)}\n\n${display}`);
+                setDisplay(display =>`From ${msg_sender}; ${msg_type}: ${msg_val}\n\n${display}`);
         };
     };
     
@@ -72,6 +73,7 @@ const App = () => {
             <div className="ui grid">
                 <div className="ui row">
                     <div>
+                        <u><b>Feedback Display:</b></u>
                         <div
                             className="eleven wide column"
                             style={{
