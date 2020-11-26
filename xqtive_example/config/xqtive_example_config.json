@@ -1,25 +1,22 @@
 {
   "log_level": 30,
-  "states":
-  {
-    "normal_priority": 999999,
+  "states": {
+    "normal_priority": 0,
     "sleep_time": 1,
     "hi_priority_states": ["SHUTDOWN"],
-    "cust_hi_priority_states": ["PWR_SPLY_OFF","E_STOP"]
+    "cust_hi_priority_states": ["PWR_SPLY_OFF", "E_STOP"]
   },
-  "aws_iot_mqtt":
-	{
-		"broker_address": "a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com",
-		"broker_port": 8883,
-		"ca_cert": "AmazonCAAllFour.pem",
-		"client_cert": "32172de1c3-certificate.pem.crt",
-		"client_key": "32172de1c3-private.pem.key",
-		"subscribe_topic_prefix": "xqtive",
+  "aws_iot_mqtt": {
+    "broker_address": "a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com",
+    "broker_port": 8883,
+    "ca_cert": "AmazonCAAllFour.pem",
+    "client_cert": "32172de1c3-certificate.pem.crt",
+    "client_key": "32172de1c3-private.pem.key",
+    "subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
-	},
-	"clearblade_iot":
-  {
+  },
+  "clearblade_iot": {
     "module_dir": "/home/skysharma/ClearBlade/Python-API",
     "broker_port": 1883,
     "system_key": "{systemKey}",
@@ -28,15 +25,14 @@
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
   },
-  "mosquitto":
-	{
-		"broker_address": "LPS",
-		"broker_port": 8883,
-		"ca_cert": "lps_ca.crt",
-		"client_cert": "lps_client.crt",
-		"client_key": "lps_client.key",
-		"subscribe_topic_prefix": "xqtive",
+  "mosquitto": {
+    "broker_address": "LPS",
+    "broker_port": 8883,
+    "ca_cert": "lps_ca.crt",
+    "client_cert": "lps_client.crt",
+    "client_key": "lps_client.key",
+    "subscribe_topic_prefix": "xqtive",
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
-	}
+  }
 }
