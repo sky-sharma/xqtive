@@ -3,21 +3,10 @@ import PubSub, { AWSIoTProvider } from '@aws-amplify/pubsub';
 import { useState, useEffect } from 'react';
 import SequenceSelector from '../components/SequenceSelector';
 import RunSequenceButton from '../components/RunSequenceButton';
-import ClearDisplayButton from '../components/ClearDisplayButton';
 import EStopButton from '../components/EStopButton';
 import ShutdownButton from '../components/ShutdownButton';
-
-Amplify.configure({
-    Auth: {
-      identityPoolId: '<identityPoolId>',
-      region: 'us-east-2',
-    },
-});
-
-Amplify.addPluggable(new AWSIoTProvider({
-    aws_pubsub_region: 'us-east-2',
-    aws_pubsub_endpoint: 'wss://a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com/mqtt'
-}));
+import FeedbackDisplay from './FeedbackDisplay';
+import ClearDisplayButton from '../components/ClearDisplayButton';
 
 const App = () => {
     const [sequences, setSequences] = useState([]);
@@ -58,7 +47,19 @@ const App = () => {
 
     useEffect(() => {
         console.log("In useEffect.");
-                
+        
+        Amplify.configure({
+            Auth: {
+              identityPoolId: 'us-east-2:d5279c86-de14-4b86-9525-40c8d5ab4cb0',
+              region: 'us-east-2',
+            },
+        });
+        
+        Amplify.addPluggable(new AWSIoTProvider({
+            aws_pubsub_region: 'us-east-2',
+            aws_pubsub_endpoint: 'wss://a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com/mqtt'
+        }));
+
         PubSub.subscribe('xqtive/feedback').subscribe({
             next: data => rcvMsgFromXqtiveController(data),
             error: error => console.error(error),
@@ -72,21 +73,9 @@ const App = () => {
             style={{ padding: 20 }} >
             <div className="ui grid">
                 <div className="ui row">
-                    <div>
-                        <u><b>Feedback Display:</b></u>
-                        <div
-                            className="eleven wide column"
-                            style={{
-                                height: 800,
-                                overflowY: 'scroll',
-                                whiteSpace: 'pre-wrap',
-                                maxWidth: 450 }}>
-                            {display}
-                        </div>
-                        <br />
-                        <div>
-                            <ClearDisplayButton display={display} onClearDispClick={onClearDispClick}/>
-                        </div>
+                    <div className="eleven wide column">
+                        <FeedbackDisplay display={display}/>
+                        <ClearDisplayButton display={display} onClearDispClick={onClearDispClick}/>
                     </div>
                     <div className="five wide column">
                         <SequenceSelector sequences={sequences} onSeqSelection={onSeqSelection}/>
