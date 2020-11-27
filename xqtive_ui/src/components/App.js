@@ -1,5 +1,3 @@
-import Amplify from 'aws-amplify';
-import PubSub, { AWSIoTProvider } from '@aws-amplify/pubsub';
 import { useState, useEffect } from 'react';
 import SequenceSelector from '../components/SequenceSelector';
 import RunSequenceButton from '../components/RunSequenceButton';
@@ -7,6 +5,7 @@ import EStopButton from '../components/EStopButton';
 import ShutdownButton from '../components/ShutdownButton';
 import FeedbackDisplay from './FeedbackDisplay';
 import ClearDisplayButton from '../components/ClearDisplayButton';
+import { mqttConnectSubscribe, mqttPublish } from '../mqtt_providers/aws_iot';
 
 const App = () => {
     const [sequences, setSequences] = useState([]);
@@ -32,7 +31,7 @@ const App = () => {
     const sendMsgToXqtiveController = (msg_type, value) => {
         const msgToSend = { msg_type, value };
         console.log("sendMsgToXqtiveController!", msgToSend);
-        PubSub.publish('xqtive/controller', msgToSend);
+        mqttPublish('xqtive/controller', msgToSend)
     };
 
     const onSeqSelection = (seqSelection) => {
@@ -47,24 +46,7 @@ const App = () => {
 
     useEffect(() => {
         console.log("In useEffect.");
-        
-        Amplify.configure({
-            Auth: {
-              identityPoolId: 'us-east-2:d5279c86-de14-4b86-9525-40c8d5ab4cb0',
-              region: 'us-east-2',
-            },
-        });
-        
-        Amplify.addPluggable(new AWSIoTProvider({
-            aws_pubsub_region: 'us-east-2',
-            aws_pubsub_endpoint: 'wss://a3nhp0s4taaayb-ats.iot.us-east-2.amazonaws.com/mqtt'
-        }));
-
-        PubSub.subscribe('xqtive/feedback').subscribe({
-            next: data => rcvMsgFromXqtiveController(data),
-            error: error => console.error(error),
-            close: () => console.log('Done'),
-        });
+        mqttConnectSubscribe('xqtive/feedback', rcvMsgFromXqtiveController)
     },[]);
 
     return (
