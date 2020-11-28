@@ -82,11 +82,16 @@ class MosQuiTTo(IotProvider):
     Child class containing implementations of IotProvider specific to MosQuiTTo.
     """
 
+    def __init__(self, iot_provider_cfg):
+        # 1. Set tls_version to correspond to mosquitto broker.
+        # 2. Call parent class' __init__
+        self.tls_version = eval(f"ssl.PROTOCOL_TLSv1_{iot_provider_cfg['tls_version']}")
+        super().__init__(iot_provider_cfg)
+
     def on_connect(self, client, userdata, flags, rc):
         # Event handler for connection event. Subscribe to topic(s) here.
         client.subscribe(self.subscribe_topic, qos=0)
-        print(f"subscribed to {self.subscribe_topic}")
-
+        
     def onmsg(self, client, userdata, msg):
         # Wraps core event handler for incoming messages
         msg_payload = msg.payload
@@ -97,7 +102,7 @@ class MosQuiTTo(IotProvider):
         self.mosquitto_comm = MosQuiTToClient()
         self.mosquitto_comm.on_connect = self.on_connect
         self.mosquitto_comm.on_message = self.onmsg
-        self.mosquitto_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, cert_reqs=ssl.CERT_REQUIRED)
+        self.mosquitto_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, tls_version=self.tls_version, cert_reqs=ssl.CERT_REQUIRED)
         self.mosquitto_comm.connect(self.iot_broker, self.iot_port)
         self.mosquitto_comm.loop_start()
 
@@ -251,6 +256,7 @@ def iot_rw(obj):
         "iot_client_key_path": iot_client_key_path,
         "iot_client_cert_path": iot_client_cert_path,
         "subscribe_topic": subscribe_topic,
+        "tls_version": config[iot_provider].get("tls_version"),
         "module_dir": config[iot_provider].get("module_dir"),
         "system_key": config[iot_provider].get("system_key"),
         "system_secret": config[iot_provider].get("system_secret")}
