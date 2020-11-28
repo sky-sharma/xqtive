@@ -17,7 +17,7 @@ FEATURES:
 1. Written and tested in Python3.8, but should work with Python3.6 onwards.
 2. Written for Linux. Tested on Debian, Ubuntu 18.04 and WSL (Windows Subsystem for Linux) Debian app. Theoretically should work on Win10 since it is Python-based but has not been tested there.
 3. Leverages multiprocessing.
-4. Interfaces with AWS IoT MQTT or ClearBlade MQTT. Interfacing with Azure and MosQuiTTo is planned.
+4. Interfaces with AWS IoT MQTT, ClearBlade MQTT and MosQuiTTo. Interfacing with Azure is planned.
 5. Allows a non-programmer to write test sequences using a text-editor and using a simple set of rules / syntax.
 6. Allows a programmer with some Python abilities to extend some key classes.
 7. Each step in the sequence file corresponds to a state in a state machine. Each of those states subsequently can be defined by sub-states and those by sub-states and so on. To enable all the states to execute in the proper order PriorityQueues are used.
@@ -27,7 +27,7 @@ FEATURES:
 11. At any given time an application built with XQtive runs two or more processes:
 
 - Main Queued State Machine (uses XQtiveStateMachine and extensions). This is the one whose states are called out in a sequence / recipe file or in MQTT messages.
-- Main IoT / MQTT process which interfaces to broker (currently AWS IoT or ClearBlade; support for Azure and MosQuiTTo are planned for the future).
+- Main IoT / MQTT process which interfaces to broker (currently AWS IoT, ClearBlade or MosQuiTTo; support for Azure is planned for the future).
 - Optional Queued State Machines (also use XQtiveStateMachine and extensions) launched using "multiprocessing". Talk to other Queued State Machines (including main one) using the Priority Queue of the state machine in question.
 
 EXAMPLE SEQUENCE FILE:
