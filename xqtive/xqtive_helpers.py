@@ -9,7 +9,8 @@ from pathlib import Path
 from queue import Queue
 from multiprocessing import Process
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
-from paho.mqtt.client import Client as MosQuiTToClient
+from paho.mqtt import client as mqtt
+from paho.mqtt.client import Client
 import AWSIoTPythonSDK.MQTTLib as AWSIoTPyMQTT
 
 class IotProvider():
@@ -99,7 +100,7 @@ class MosQuiTTo(IotProvider):
 
     def connect(self):
         # A connection to iot is established at the beginning and if publish fails
-        self.mosquitto_comm = MosQuiTToClient()
+        self.mosquitto_comm = Client()
         self.mosquitto_comm.on_connect = self.on_connect
         self.mosquitto_comm.on_message = self.onmsg
         self.mosquitto_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, tls_version=self.tls_version, cert_reqs=ssl.CERT_REQUIRED)
@@ -111,6 +112,49 @@ class MosQuiTTo(IotProvider):
 
     def publish(self, publish_topic, msg_str, qos):
         self.mosquitto_comm.publish(publish_topic, msg_str, qos=qos)
+
+
+
+class AzureIoT(IotProvider):
+    def __init__(self, iot_provider_cfg):
+        # 1. Set device_name.
+        # 2. Set tls_version.
+        # 3. Set MQTT Protocol version
+        # 4. Call parent class' __init__
+        self.device_name = iot_provider_cfg["device_name"]
+        self.tls_version = eval(f"ssl.PROTOCOL_TLSv1_{iot_provider_cfg['tls_version']}")
+        self.mqtt_version = eval(f"mqtt.MQTTv{iot_provider_cfg['mqtt_version']}")
+        super().__init__(iot_provider_cfg)
+
+    def on_connect(self, client, userdata, flags, rc):
+        # Event handler for connection event. Subscribe to topic(s) here.
+        client.subscribe(self.subscribe_topic, qos=0)
+        
+    def on_disconnect(client, userdata, rc):
+        print(f"Disconnected with code {rc}")
+
+    def onmsg(self, client, userdata, msg):
+        # Wraps core event handler for incoming messages
+        msg_payload = msg.payload
+        super().onmsg(msg_payload)
+
+    def connect(self):
+        # A connection to iot is established at the beginning and if publish fails
+        self.azure_iot_comm = Client(client_id = self.device_name, protocol = self.mqtt_version)
+        self.azure_iot_comm.on_connect = self.on_connect
+        self.azure_iot_comm.on_disconnect = self.on_disconnect
+        self.azure_iot_comm.on_message = self.onmsg
+        self.azure_iot_comm.username_pw_set(username = f"{self.iot_broker}/{self.device_name}")
+        self.azure_iot_comm.tls_set(self.iot_ca_cert_path, self.iot_client_cert_path, self.iot_client_key_path, tls_version=self.tls_version, cert_reqs=ssl.CERT_REQUIRED)
+        self.azure_iot_comm.connect(self.iot_broker, self.iot_port)
+        self.azure_iot_comm.loop_start()
+
+    def disconnect(self):
+        self.azure_iot_comm.disconnect()
+
+    def publish(self, publish_topic, msg_str, qos):
+        # Overriding qos to 0 because Azure doesn't seem to like any other qos
+        self.azure_iot_comm.publish(publish_topic, msg_str, qos=0)
 
 
 
@@ -257,11 +301,15 @@ def iot_rw(obj):
         "iot_client_cert_path": iot_client_cert_path,
         "subscribe_topic": subscribe_topic,
         "tls_version": config[iot_provider].get("tls_version"),
+        "mqtt_version": config[iot_provider].get("mqtt_version"),
+        "device_name": config[iot_provider].get("device_name"),
         "module_dir": config[iot_provider].get("module_dir"),
         "system_key": config[iot_provider].get("system_key"),
         "system_secret": config[iot_provider].get("system_secret")}
     if iot_provider == "aws_iot_mqtt":
         iot_comm = AwsIotMqtt(iot_provider_cfg)
+    elif iot_provider == "azure_iot":
+        iot_comm = AzureIoT(iot_provider_cfg)
     elif iot_provider == "mosquitto":
         iot_comm = MosQuiTTo(iot_provider_cfg)
     elif iot_provider == "clearblade_iot":

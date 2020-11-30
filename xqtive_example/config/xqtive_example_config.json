@@ -16,6 +16,19 @@
     "publish_topic": "xqtive/feedback",
     "wait_between_reconn_attempts": 3
   },
+  "azure_iot": {
+    "broker_address": "LpsIotHub.azure-devices.net",
+    "broker_port": 8883,
+    "tls_version": 2,
+    "device_name": "xqtive",
+    "mqtt_version": "311",
+    "ca_cert": "BaltimoreCyberTrustRoot.pem",
+    "client_cert": "azure_client_cert.pem",
+    "client_key": "azure_client_private_key.pem",
+    "subscribe_topic_prefix": "xqtive",
+    "publish_topic": "xqtive/feedback",
+    "wait_between_reconn_attempts": 3
+  },
   "clearblade_iot": {
     "module_dir": "/home/skysharma/ClearBlade/Python-API",
     "broker_port": 1883,

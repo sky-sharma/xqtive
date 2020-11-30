@@ -4,7 +4,7 @@ import PubSub, { AWSIoTProvider } from '@aws-amplify/pubsub';
 const mqttConnectSubscribe = (subscribeTopic, incomingMsgHandler) => {
     Amplify.configure({
         Auth: {
-            identityPoolId: '<Your Cognito Identity Pool ID>',
+            identityPoolId: 'us-east-2:d5279c86-de14-4b86-9525-40c8d5ab4cb0',
             region: 'us-east-2',
         },
     });
